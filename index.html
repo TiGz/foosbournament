@@ -32,6 +32,22 @@
             },
             animation: {
               'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              confetti: {
+                '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+                '100%': { transform: 'translateY(100vh) rotate(720deg)', opacity: '0' },
+              },
+              sparkle: {
+                '0%': { transform: 'scale(0) rotate(0deg)', opacity: '0' },
+                '50%': { transform: 'scale(1.5) rotate(180deg)', opacity: '1' },
+                '100%': { transform: 'scale(0) rotate(360deg)', opacity: '0' },
+              },
+              victoryPop: {
+                '0%': { transform: 'scale(0.5)', opacity: '0' },
+                '50%': { transform: 'scale(1.1)' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              },
             }
           }
         }

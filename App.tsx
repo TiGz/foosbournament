@@ -567,6 +567,7 @@ const App: React.FC = () => {
           onFinishMatch={handleFinishMatch}
           onCancelMatch={handleCancelMatch}
           settings={currentTournament.settings ?? DEFAULT_TOURNAMENT_SETTINGS}
+          onUpdateSettings={handleUpdateSettings}
           onUndo={handleUndo}
           onRedo={handleRedo}
           canUndo={historyIndex > 0}

@@ -1,8 +1,9 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Match, PlayerView, TournamentSettings } from '../types';
 import { getWinningScore } from '../services/tournamentLogic';
-import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2 } from 'lucide-react';
+import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles } from 'lucide-react';
+import OptionsModal from './OptionsModal';
 
 interface Props {
   match: Match;
@@ -11,15 +12,19 @@ interface Props {
   onFinishMatch: () => void;
   onCancelMatch: () => void;
   settings: TournamentSettings;
+  onUpdateSettings: (settings: TournamentSettings) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
 
-const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, settings, onUndo, onRedo, canUndo, canRedo }) => {
+const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, settings, onUpdateSettings, onUndo, onRedo, canUndo, canRedo }) => {
   const isPositionMode = settings.isPositionMode;
   const winningScore = getWinningScore(settings);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showWinAnimation, setShowWinAnimation] = useState(false);
+  const [winningTeam, setWinningTeam] = useState<'team1' | 'team2' | null>(null);
 
   const getPlayer = (id: string) => players.find(p => p.id === id);
 
@@ -52,6 +57,21 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
 
   const isWinner1 = match.team1.score >= winningScore;
   const isWinner2 = match.team2.score >= winningScore;
+
+  // Trigger win animation when someone wins
+  useEffect(() => {
+    if (isWinner1 && winningTeam !== 'team1') {
+      setWinningTeam('team1');
+      setShowWinAnimation(true);
+    } else if (isWinner2 && winningTeam !== 'team2') {
+      setWinningTeam('team2');
+      setShowWinAnimation(true);
+    } else if (!isWinner1 && !isWinner2 && winningTeam) {
+      // Reset if score drops below winning (undo scenario)
+      setWinningTeam(null);
+      setShowWinAnimation(false);
+    }
+  }, [isWinner1, isWinner2, winningTeam]);
 
   // Render a single player avatar at a specific percentage position
   const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
@@ -126,17 +146,28 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     <div className="h-screen flex flex-col bg-slate-900 overflow-hidden font-sans">
       
       {/* Top Bar */}
-      <div className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-30 shadow-2xl relative">
+      <div className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 z-30 shadow-2xl relative">
         <button onClick={onCancelMatch} className="text-slate-500 hover:text-white flex items-center gap-2 transition uppercase text-xs font-bold tracking-widest">
-            <XCircle className="w-5 h-5" /> Cancel
+            <XCircle className="w-5 h-5" /> <span className="hidden md:inline">Cancel</span>
         </button>
-        
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 opacity-50">
-             <img src={import.meta.env.BASE_URL + 'logo.jpeg'} alt="Logo" className="h-8 grayscale" />
-             <span className="text-slate-600 font-black text-xs tracking-[0.2em] uppercase">Match In Progress</span>
+
+        {/* Center: Target Score Display */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
+             <div className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-slate-700">
+               <Star className="w-4 h-4 text-foos-gold" />
+               <span className="text-white font-black text-lg tabular-nums">{winningScore}</span>
+               <span className="text-slate-500 text-xs font-bold uppercase tracking-wide hidden md:inline">to win</span>
+             </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
+          <button
+            onClick={() => setShowOptionsModal(true)}
+            className="p-2 rounded-lg transition text-slate-400 hover:text-white hover:bg-slate-800"
+            title="Options"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           <button
             onClick={onUndo}
             disabled={!canUndo}
@@ -154,16 +185,16 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
             <Redo2 className="w-5 h-5" />
           </button>
 
-          <button 
+          <button
             onClick={onFinishMatch}
             disabled={!isWinner1 && !isWinner2}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold text-sm transition uppercase tracking-wide shadow-lg ${
+            className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded-lg font-bold text-sm transition uppercase tracking-wide shadow-lg ${
                 isWinner1 || isWinner2
                 ? 'bg-foos-brand text-white hover:bg-orange-600 shadow-orange-500/20'
                 : 'bg-slate-800 text-slate-600 cursor-not-allowed'
             }`}
         >
-            <Save className="w-4 h-4" /> Save Result
+            <Save className="w-4 h-4" /> <span className="hidden md:inline">Save Result</span>
         </button>
         </div>
       </div>
@@ -286,6 +317,75 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         </div>
 
       </div>
+
+      {/* Win Animation Overlay */}
+      {showWinAnimation && winningTeam && (
+        <div
+          className={`fixed inset-0 z-40 pointer-events-none overflow-hidden transition-opacity duration-500 ${showWinAnimation ? 'opacity-100' : 'opacity-0'}`}
+        >
+          {/* Background flash */}
+          <div className={`absolute inset-0 animate-pulse ${
+            winningTeam === 'team1' ? 'bg-blue-500/20' : 'bg-red-500/20'
+          }`} />
+
+          {/* Confetti-like particles */}
+          <div className="absolute inset-0">
+            {[...Array(20)].map((_, i) => (
+              <div
+                key={i}
+                className={`absolute w-3 h-3 rounded-full ${
+                  winningTeam === 'team1' ? 'bg-blue-400' : 'bg-red-400'
+                } animate-[confetti_2s_ease-out_forwards]`}
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: '-20px',
+                  animationDelay: `${Math.random() * 0.5}s`,
+                  opacity: Math.random() * 0.8 + 0.2,
+                }}
+              />
+            ))}
+            {[...Array(15)].map((_, i) => (
+              <Sparkles
+                key={`star-${i}`}
+                className={`absolute w-6 h-6 ${
+                  winningTeam === 'team1' ? 'text-blue-300' : 'text-red-300'
+                } animate-[sparkle_1.5s_ease-out_forwards]`}
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 0.8}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Victory text */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className={`text-center transform animate-[victoryPop_0.5s_ease-out_forwards]`}>
+              <Trophy className={`w-24 h-24 mx-auto mb-4 ${
+                winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
+              } drop-shadow-[0_0_30px_rgba(250,204,21,0.8)] animate-bounce`} />
+              <h2 className={`text-6xl md:text-8xl font-black uppercase italic tracking-wider ${
+                winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
+              } drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]`}>
+                {winningTeam === 'team1' ? 'BLUE' : 'RED'}
+              </h2>
+              <p className="text-4xl md:text-6xl font-black text-foos-gold mt-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse">
+                WINS!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Options Modal */}
+      <OptionsModal
+        isOpen={showOptionsModal}
+        onClose={() => setShowOptionsModal(false)}
+        settings={settings}
+        onSave={onUpdateSettings}
+        hasCompletedMatches={false}
+      />
     </div>
   );
 };
