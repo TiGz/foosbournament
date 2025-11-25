@@ -529,6 +529,7 @@ const App: React.FC = () => {
       {view === AppView.DASHBOARD && currentTournament && (
         <Dashboard
           players={playerViews}
+          globalPlayers={globalPlayers}
           matches={currentTournament.matches}
           tournamentName={currentTournament.name}
           onStartMatch={handleStartMatch}
@@ -541,6 +542,7 @@ const App: React.FC = () => {
           onTogglePlayerAvailability={handleTogglePlayerAvailability}
           onBackToLobby={handleBackToLobby}
           onEditRoster={handleEditRoster}
+          onUpdatePlayer={handleUpdateGlobalPlayer}
         />
       )}
 

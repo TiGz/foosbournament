@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
-import { PlayerView, Match } from '../types';
+import { PlayerView, Match, GlobalPlayer } from '../types';
 import { getLeaderboard } from '../services/tournamentLogic';
-import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus } from 'lucide-react';
+import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus, Camera } from 'lucide-react';
+import AvatarEditor from './AvatarEditor';
 
 interface Props {
   players: PlayerView[];
+  globalPlayers: GlobalPlayer[];
   matches: Match[];
   tournamentName: string;
   onStartMatch: () => void;
@@ -14,6 +16,7 @@ interface Props {
   onExportData: () => void;
   onBackToLobby: () => void;
   onEditRoster: () => void;
+  onUpdatePlayer: (player: GlobalPlayer) => void;
   canStartMatch: boolean;
   isPositionMode: boolean;
   onTogglePositionMode: () => void;
@@ -22,6 +25,7 @@ interface Props {
 
 const Dashboard: React.FC<Props> = ({
     players,
+    globalPlayers,
     matches,
     tournamentName,
     onStartMatch,
@@ -30,6 +34,7 @@ const Dashboard: React.FC<Props> = ({
     onExportData,
     onBackToLobby,
     onEditRoster,
+    onUpdatePlayer,
     canStartMatch,
     isPositionMode,
     onTogglePositionMode,
@@ -47,6 +52,7 @@ const Dashboard: React.FC<Props> = ({
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerView | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCancelRoundConfirm, setShowCancelRoundConfirm] = useState(false);
+  const [editingAvatarPlayer, setEditingAvatarPlayer] = useState<GlobalPlayer | null>(null);
 
   // Helper to get formatted name for a team
   const getTeamNames = (team: any) => {
@@ -410,12 +416,22 @@ const Dashboard: React.FC<Props> = ({
                         <div className="absolute inset-0 bg-foos-brand/10"></div>
                         {/* Portrait: anchor from top, Landscape: center in panel */}
                         <div className="absolute portrait:top-4 portrait:left-1/2 portrait:-translate-x-1/2 landscape:inset-0 landscape:flex landscape:items-center landscape:justify-center">
-                            <div className="w-24 h-24 rounded-full border-4 border-foos-panel bg-slate-800 overflow-hidden shadow-xl">
+                            <div
+                                className="w-24 h-24 rounded-full border-4 border-foos-panel bg-slate-800 overflow-hidden shadow-xl cursor-pointer hover:border-foos-accent transition relative group"
+                                onClick={() => {
+                                    const gp = globalPlayers.find(g => g.id === selectedPlayer.id);
+                                    if (gp) setEditingAvatarPlayer(gp);
+                                }}
+                                title="Edit avatar"
+                            >
                                 {selectedPlayer.photoUrl ? (
                                     <img src={selectedPlayer.photoUrl} alt={selectedPlayer.nickname} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-slate-500">{selectedPlayer.nickname.charAt(0)}</div>
                                 )}
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition rounded-full">
+                                    <Camera className="w-6 h-6 text-white" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -575,6 +591,24 @@ const Dashboard: React.FC<Props> = ({
                 </div>
             </div>
         </div>
+      )}
+
+      {/* Avatar Editor Modal */}
+      {editingAvatarPlayer && (
+        <AvatarEditor
+          isOpen={!!editingAvatarPlayer}
+          onClose={() => setEditingAvatarPlayer(null)}
+          currentImageUrl={editingAvatarPlayer.photoUrl}
+          playerNickname={editingAvatarPlayer.nickname}
+          onSave={(newPhotoUrl) => {
+            onUpdatePlayer({ ...editingAvatarPlayer, photoUrl: newPhotoUrl });
+            // Update selectedPlayer view if it's the same player
+            if (selectedPlayer && selectedPlayer.id === editingAvatarPlayer.id) {
+              setSelectedPlayer({ ...selectedPlayer, photoUrl: newPhotoUrl });
+            }
+            setEditingAvatarPlayer(null);
+          }}
+        />
       )}
 
     </div>

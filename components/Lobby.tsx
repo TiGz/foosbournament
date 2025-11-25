@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GlobalPlayer, TournamentSummary } from '../types';
-import { Trophy, Plus, Users, Calendar, Trash2, X, Edit3, Check } from 'lucide-react';
+import { Trophy, Plus, Users, Calendar, Trash2, Edit3, Check, Camera } from 'lucide-react';
+import AvatarEditor from './AvatarEditor';
 
 interface Props {
   tournaments: TournamentSummary[];
@@ -22,6 +23,7 @@ const Lobby: React.FC<Props> = ({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editingNickname, setEditingNickname] = useState('');
+  const [editingAvatarPlayer, setEditingAvatarPlayer] = useState<GlobalPlayer | null>(null);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -162,7 +164,11 @@ const Lobby: React.FC<Props> = ({
                     className="bg-slate-900 border border-slate-800 rounded-xl p-3 hover:border-slate-600 transition group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 overflow-hidden flex-shrink-0">
+                      <div
+                        className="w-10 h-10 rounded-full bg-slate-800 border-2 border-slate-700 overflow-hidden flex-shrink-0 cursor-pointer hover:border-foos-accent transition relative group"
+                        onClick={() => setEditingAvatarPlayer(player)}
+                        title="Edit avatar"
+                      >
                         {player.photoUrl ? (
                           <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
                         ) : (
@@ -170,6 +176,9 @@ const Lobby: React.FC<Props> = ({
                             {player.nickname.charAt(0)}
                           </div>
                         )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition rounded-full">
+                          <Camera className="w-4 h-4 text-white" />
+                        </div>
                       </div>
                       <div className="flex-1 min-w-0">
                         {editingPlayerId === player.id ? (
@@ -245,6 +254,20 @@ const Lobby: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Avatar Editor Modal */}
+      {editingAvatarPlayer && (
+        <AvatarEditor
+          isOpen={!!editingAvatarPlayer}
+          onClose={() => setEditingAvatarPlayer(null)}
+          currentImageUrl={editingAvatarPlayer.photoUrl}
+          playerNickname={editingAvatarPlayer.nickname}
+          onSave={(newPhotoUrl) => {
+            onUpdatePlayer({ ...editingAvatarPlayer, photoUrl: newPhotoUrl });
+            setEditingAvatarPlayer(null);
+          }}
+        />
       )}
     </div>
   );

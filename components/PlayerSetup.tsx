@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { PlayerView, GlobalPlayer } from '../types';
-import { generateAvatar, hasApiKey, setApiKey, clearApiKey } from '../services/geminiService';
+import { useImageCapture } from '../hooks/useImageCapture';
 import { Loader2, Camera, Sparkles, UserPlus, Trash2, ArrowRight, X, SwitchCamera, KeyRound, ArrowLeft, Users, Plus } from 'lucide-react';
 
 interface Props {
@@ -25,184 +25,37 @@ const PlayerSetup: React.FC<Props> = ({
   onBackToLobby,
 }) => {
   const [nickname, setNickname] = useState('');
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showPlayerPool, setShowPlayerPool] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [hasKey, setHasKey] = useState(hasApiKey());
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+
+  const {
+    imagePreview,
+    setImagePreview,
+    isCameraOpen,
+    isGenerating,
+    videoRef,
+    startCamera,
+    stopCamera,
+    capturePhoto,
+    fileInputRef,
+    triggerFileInput,
+    handleFileChange,
+    generateAiAvatar,
+    hasKey,
+    showApiKeyModal,
+    setShowApiKeyModal,
+    apiKeyInput,
+    setApiKeyInput,
+    handleSaveApiKey,
+    handleClearApiKey,
+  } = useImageCapture();
 
   // Get players not in tournament
   const availablePlayers = globalPlayers.filter(
     gp => !players.some(p => p.id === gp.id)
   );
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
-  // Effect to handle camera stream initialization when isCameraOpen changes
-  useEffect(() => {
-    let mounted = true;
-
-    const initCamera = async () => {
-      if (isCameraOpen) {
-        if (!videoRef.current) return;
-
-        try {
-          if (!streamRef.current) {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 1280 }, height: { ideal: 720 } }
-            });
-
-            if (!mounted) {
-              stream.getTracks().forEach(track => track.stop());
-              return;
-            }
-            streamRef.current = stream;
-          }
-
-          if (videoRef.current) {
-            videoRef.current.srcObject = streamRef.current;
-            await videoRef.current.play();
-          }
-        } catch (err) {
-          console.error("Error accessing camera:", err);
-          alert("Could not access camera. Please check permissions.");
-          setIsCameraOpen(false);
-        }
-      } else {
-        stopCamera();
-      }
-    };
-
-    initCamera();
-
-    return () => {
-      mounted = false;
-    };
-  }, [isCameraOpen]);
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const startCamera = () => {
-    setImagePreview(null);
-    setIsCameraOpen(true);
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(videoRef.current, 0, 0);
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        resizeImage(dataUrl, 800, (resized) => {
-          setImagePreview(resized);
-          setIsCameraOpen(false);
-        });
-      }
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resizeImage(result, 800, (resized) => {
-          setImagePreview(resized);
-          setIsCameraOpen(false);
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const resizeImage = (base64Str: string, maxWidth: number, callback: (str: string) => void) => {
-    const img = new Image();
-    img.src = base64Str;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const scale = maxWidth / img.width;
-      if (scale >= 1) {
-        callback(base64Str);
-        return;
-      }
-      canvas.width = maxWidth;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-      callback(canvas.toDataURL('image/jpeg', 0.8));
-    };
-  };
-
-  const handleSaveApiKey = () => {
-    if (apiKeyInput.trim()) {
-      setApiKey(apiKeyInput.trim());
-      setHasKey(true);
-      setShowApiKeyModal(false);
-      setApiKeyInput('');
-    }
-  };
-
-  const handleClearApiKey = () => {
-    clearApiKey();
-    setHasKey(false);
-  };
-
   const handleGenerateAvatar = async () => {
-    if (!imagePreview) return;
-
-    if (!hasApiKey()) {
-      setShowApiKeyModal(true);
-      return;
-    }
-
-    setIsGenerating(true);
-
-    try {
-      const base64Data = imagePreview.split(',')[1];
-      const newAvatar = await generateAvatar(base64Data, nickname);
-      setImagePreview(newAvatar);
-    } catch (error: any) {
-      console.error("Gemini Generation Error:", error);
-
-      const errMsg = error.toString().toLowerCase();
-      const isAuthError = errMsg.includes('403') ||
-        errMsg.includes('401') ||
-        errMsg.includes('api_key_missing') ||
-        errMsg.includes('invalid');
-
-      if (isAuthError) {
-        setShowApiKeyModal(true);
-      } else {
-        alert(`AI Generation Failed: ${error.message || "Unknown error"}`);
-      }
-    } finally {
-      setIsGenerating(false);
-    }
+    await generateAiAvatar(nickname);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -212,7 +65,7 @@ const PlayerSetup: React.FC<Props> = ({
     // Reset form
     setNickname('');
     setImagePreview(null);
-    setIsCameraOpen(false);
+    stopCamera();
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -283,7 +136,7 @@ const PlayerSetup: React.FC<Props> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setIsCameraOpen(false)}
+                            onClick={() => stopCamera()}
                             className="bg-slate-800/80 text-white rounded-full p-1.5 hover:bg-red-500 transition"
                           >
                             <X className="w-4 h-4" />
@@ -329,7 +182,7 @@ const PlayerSetup: React.FC<Props> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={triggerFileInput}
                           disabled={!nickname.trim()}
                           className={`text-xs px-3 py-1.5 rounded-lg font-bold transition border ${
                             !nickname.trim()
