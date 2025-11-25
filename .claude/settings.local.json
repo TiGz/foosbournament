@@ -9,7 +9,9 @@
       "Bash(npm install:*)",
       "Bash(npx sharp:*)",
       "Bash(node -e:*)",
-      "Bash(timeout 10 npm run dev:*)"
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

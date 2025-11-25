@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlayerView, GlobalPlayer } from '../types';
 import { useImageCapture } from '../hooks/useImageCapture';
-import { Loader2, Camera, Sparkles, UserPlus, Trash2, ArrowRight, X, SwitchCamera, KeyRound, ArrowLeft, Users, Plus } from 'lucide-react';
+import { Loader2, Camera, Sparkles, UserPlus, Trash2, ArrowRight, X, SwitchCamera, KeyRound, ArrowLeft, Users, Plus, Check } from 'lucide-react';
 
 interface Props {
   players: PlayerView[];
@@ -26,6 +26,7 @@ const PlayerSetup: React.FC<Props> = ({
 }) => {
   const [nickname, setNickname] = useState('');
   const [showPlayerPool, setShowPlayerPool] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
 
   const {
     imagePreview,
@@ -309,14 +310,38 @@ const PlayerSetup: React.FC<Props> = ({
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-foos-panel rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl max-h-[80vh] flex flex-col">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-white">Add Existing Player</h3>
+              <h3 className="text-lg font-bold text-white">Add Existing Players</h3>
               <button
-                onClick={() => setShowPlayerPool(false)}
+                onClick={() => {
+                  setShowPlayerPool(false);
+                  setSelectedPlayerIds(new Set());
+                }}
                 className="text-slate-500 hover:text-white transition"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Select All / Deselect All */}
+            {availablePlayers.length > 0 && (
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-700">
+                <span className="text-sm text-slate-400">
+                  {selectedPlayerIds.size} of {availablePlayers.length} selected
+                </span>
+                <button
+                  onClick={() => {
+                    if (selectedPlayerIds.size === availablePlayers.length) {
+                      setSelectedPlayerIds(new Set());
+                    } else {
+                      setSelectedPlayerIds(new Set(availablePlayers.map(p => p.id)));
+                    }
+                  }}
+                  className="text-sm text-foos-accent hover:text-cyan-300 font-bold transition"
+                >
+                  {selectedPlayerIds.size === availablePlayers.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto space-y-2">
               {availablePlayers.length === 0 ? (
@@ -324,13 +349,38 @@ const PlayerSetup: React.FC<Props> = ({
                   All players are already in this tournament.
                 </div>
               ) : (
-                availablePlayers.map(player => (
-                  <div
-                    key={player.id}
-                    className="flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 hover:border-slate-600 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden border-2 border-slate-700">
+                availablePlayers.map(player => {
+                  const isSelected = selectedPlayerIds.has(player.id);
+                  return (
+                    <div
+                      key={player.id}
+                      onClick={() => {
+                        setSelectedPlayerIds(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(player.id)) {
+                            newSet.delete(player.id);
+                          } else {
+                            newSet.add(player.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      className={`flex items-center gap-3 bg-slate-900 p-3 rounded-lg border cursor-pointer transition ${
+                        isSelected
+                          ? 'border-foos-accent bg-foos-accent/10'
+                          : 'border-slate-800 hover:border-slate-600'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition ${
+                        isSelected
+                          ? 'bg-foos-accent border-foos-accent'
+                          : 'border-slate-600'
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3 text-slate-900" />}
+                      </div>
+
+                      <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden border-2 border-slate-700 flex-shrink-0">
                         {player.photoUrl ? (
                           <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
                         ) : (
@@ -339,27 +389,37 @@ const PlayerSetup: React.FC<Props> = ({
                           </div>
                         )}
                       </div>
-                      <div>
-                        <div className="font-bold text-white">{player.nickname}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-white truncate">{player.nickname}</div>
                         <div className="text-xs text-slate-500">
                           {player.lifetimeGamesPlayed} games · {player.lifetimeWins} wins
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        onAddPlayer(player.id);
-                        setShowPlayerPool(false);
-                      }}
-                      className="bg-foos-accent hover:bg-cyan-400 text-slate-900 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+
+            {/* Add Selected Button */}
+            {availablePlayers.length > 0 && (
+              <button
+                onClick={() => {
+                  selectedPlayerIds.forEach(id => onAddPlayer(id));
+                  setSelectedPlayerIds(new Set());
+                  setShowPlayerPool(false);
+                }}
+                disabled={selectedPlayerIds.size === 0}
+                className={`mt-4 w-full font-bold py-3 rounded-lg transition flex items-center justify-center gap-2 ${
+                  selectedPlayerIds.size > 0
+                    ? 'bg-foos-accent hover:bg-cyan-400 text-slate-900'
+                    : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+                Add {selectedPlayerIds.size > 0 ? `${selectedPlayerIds.size} Player${selectedPlayerIds.size > 1 ? 's' : ''}` : 'Selected'}
+              </button>
+            )}
           </div>
         </div>
       )}
