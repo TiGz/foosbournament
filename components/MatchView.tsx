@@ -1,9 +1,65 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Match, PlayerView, TournamentSettings } from '../types';
 import { getWinningScore } from '../services/tournamentLogic';
 import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles } from 'lucide-react';
 import OptionsModal from './OptionsModal';
+
+// Sound generation using Web Audio API
+const playWinSound = (isUnicorn: boolean) => {
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    if (isUnicorn) {
+      // Unicorn sound: Magical ascending arpeggio with sparkle
+      const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; // C5 to G6
+      notes.forEach((freq, i) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.value = freq;
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime + i * 0.1);
+        gainNode.gain.exponentialDecayTo?.(0.01, audioContext.currentTime + i * 0.1 + 0.3) ||
+          gainNode.gain.setValueAtTime(0.01, audioContext.currentTime + i * 0.1 + 0.3);
+        oscillator.start(audioContext.currentTime + i * 0.1);
+        oscillator.stop(audioContext.currentTime + i * 0.1 + 0.4);
+      });
+      // Add shimmer effect
+      setTimeout(() => {
+        const shimmer = audioContext.createOscillator();
+        const shimmerGain = audioContext.createGain();
+        shimmer.connect(shimmerGain);
+        shimmerGain.connect(audioContext.destination);
+        shimmer.type = 'triangle';
+        shimmer.frequency.value = 2093; // C7
+        shimmerGain.gain.setValueAtTime(0.2, audioContext.currentTime);
+        shimmerGain.gain.exponentialDecayTo?.(0.01, audioContext.currentTime + 0.5) ||
+          shimmerGain.gain.setValueAtTime(0.01, audioContext.currentTime + 0.5);
+        shimmer.start();
+        shimmer.stop(audioContext.currentTime + 0.6);
+      }, 600);
+    } else {
+      // Regular win sound: Victory fanfare
+      const notes = [392, 523.25, 659.25]; // G4, C5, E5 - Major chord
+      notes.forEach((freq, i) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.type = 'square';
+        oscillator.frequency.value = freq;
+        gainNode.gain.setValueAtTime(0.15, audioContext.currentTime + i * 0.05);
+        gainNode.gain.setValueAtTime(0.01, audioContext.currentTime + 0.4);
+        oscillator.start(audioContext.currentTime + i * 0.05);
+        oscillator.stop(audioContext.currentTime + 0.5);
+      });
+    }
+  } catch (e) {
+    console.log('Audio not supported');
+  }
+};
 
 interface Props {
   match: Match;
@@ -25,6 +81,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [winningTeam, setWinningTeam] = useState<'team1' | 'team2' | null>(null);
+  const [isUnicorn, setIsUnicorn] = useState(false);
 
   const getPlayer = (id: string) => players.find(p => p.id === id);
 
@@ -61,17 +118,24 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   // Trigger win animation when someone wins
   useEffect(() => {
     if (isWinner1 && winningTeam !== 'team1') {
+      const unicornWin = match.team2.score === 0;
       setWinningTeam('team1');
+      setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
+      playWinSound(unicornWin);
     } else if (isWinner2 && winningTeam !== 'team2') {
+      const unicornWin = match.team1.score === 0;
       setWinningTeam('team2');
+      setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
+      playWinSound(unicornWin);
     } else if (!isWinner1 && !isWinner2 && winningTeam) {
       // Reset if score drops below winning (undo scenario)
       setWinningTeam(null);
+      setIsUnicorn(false);
       setShowWinAnimation(false);
     }
-  }, [isWinner1, isWinner2, winningTeam]);
+  }, [isWinner1, isWinner2, winningTeam, match.team1.score, match.team2.score]);
 
   // Render a single player avatar at a specific percentage position
   const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
@@ -323,32 +387,38 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         <div
           className={`fixed inset-0 z-40 pointer-events-none overflow-hidden transition-opacity duration-500 ${showWinAnimation ? 'opacity-100' : 'opacity-0'}`}
         >
-          {/* Background flash */}
-          <div className={`absolute inset-0 animate-pulse ${
-            winningTeam === 'team1' ? 'bg-blue-500/20' : 'bg-red-500/20'
+          {/* Background flash - Rainbow for unicorn */}
+          <div className={`absolute inset-0 ${
+            isUnicorn
+              ? 'animate-[rainbowPulse_1s_ease-in-out_infinite] bg-gradient-to-r from-pink-500/30 via-purple-500/30 to-cyan-500/30'
+              : `animate-pulse ${winningTeam === 'team1' ? 'bg-blue-500/20' : 'bg-red-500/20'}`
           }`} />
 
-          {/* Confetti-like particles */}
+          {/* Confetti-like particles - More and colorful for unicorn */}
           <div className="absolute inset-0">
-            {[...Array(20)].map((_, i) => (
+            {[...Array(isUnicorn ? 40 : 20)].map((_, i) => (
               <div
                 key={i}
                 className={`absolute w-3 h-3 rounded-full ${
-                  winningTeam === 'team1' ? 'bg-blue-400' : 'bg-red-400'
+                  isUnicorn
+                    ? ['bg-pink-400', 'bg-purple-400', 'bg-cyan-400', 'bg-yellow-400', 'bg-green-400'][i % 5]
+                    : winningTeam === 'team1' ? 'bg-blue-400' : 'bg-red-400'
                 } animate-[confetti_2s_ease-out_forwards]`}
                 style={{
                   left: `${Math.random() * 100}%`,
                   top: '-20px',
-                  animationDelay: `${Math.random() * 0.5}s`,
+                  animationDelay: `${Math.random() * (isUnicorn ? 1 : 0.5)}s`,
                   opacity: Math.random() * 0.8 + 0.2,
                 }}
               />
             ))}
-            {[...Array(15)].map((_, i) => (
+            {[...Array(isUnicorn ? 30 : 15)].map((_, i) => (
               <Sparkles
                 key={`star-${i}`}
                 className={`absolute w-6 h-6 ${
-                  winningTeam === 'team1' ? 'text-blue-300' : 'text-red-300'
+                  isUnicorn
+                    ? ['text-pink-300', 'text-purple-300', 'text-cyan-300', 'text-yellow-300'][i % 4]
+                    : winningTeam === 'team1' ? 'text-blue-300' : 'text-red-300'
                 } animate-[sparkle_1.5s_ease-out_forwards]`}
                 style={{
                   left: `${Math.random() * 100}%`,
@@ -357,22 +427,53 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                 }}
               />
             ))}
+            {/* Extra unicorn stars */}
+            {isUnicorn && [...Array(20)].map((_, i) => (
+              <Star
+                key={`unicorn-star-${i}`}
+                className="absolute w-8 h-8 text-yellow-300 animate-[unicornStar_2s_ease-out_forwards] fill-yellow-300"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 1.2}s`,
+                }}
+              />
+            ))}
           </div>
 
           {/* Victory text */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className={`text-center transform animate-[victoryPop_0.5s_ease-out_forwards]`}>
-              <Trophy className={`w-24 h-24 mx-auto mb-4 ${
-                winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
-              } drop-shadow-[0_0_30px_rgba(250,204,21,0.8)] animate-bounce`} />
-              <h2 className={`text-6xl md:text-8xl font-black uppercase italic tracking-wider ${
-                winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
-              } drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]`}>
-                {winningTeam === 'team1' ? 'BLUE' : 'RED'}
-              </h2>
-              <p className="text-4xl md:text-6xl font-black text-foos-gold mt-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse">
-                WINS!
-              </p>
+              {isUnicorn ? (
+                <>
+                  {/* Unicorn emoji with rainbow glow */}
+                  <div className="text-[8rem] md:text-[12rem] animate-bounce drop-shadow-[0_0_40px_rgba(236,72,153,0.8)]">
+                    🦄
+                  </div>
+                  <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-wider bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(0,0,0,0.8)] animate-[rainbowText_2s_linear_infinite]">
+                    UNICORN!
+                  </h2>
+                  <p className={`text-3xl md:text-5xl font-black mt-2 ${
+                    winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
+                  } drop-shadow-[0_0_15px_rgba(0,0,0,0.6)]`}>
+                    {winningTeam === 'team1' ? 'BLUE' : 'RED'} WINS {winningScore}-0!
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Trophy className={`w-24 h-24 mx-auto mb-4 ${
+                    winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
+                  } drop-shadow-[0_0_30px_rgba(250,204,21,0.8)] animate-bounce`} />
+                  <h2 className={`text-6xl md:text-8xl font-black uppercase italic tracking-wider ${
+                    winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
+                  } drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]`}>
+                    {winningTeam === 'team1' ? 'BLUE' : 'RED'}
+                  </h2>
+                  <p className="text-4xl md:text-6xl font-black text-foos-gold mt-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse">
+                    WINS!
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
