@@ -271,7 +271,7 @@ const App: React.FC = () => {
     } : null);
   };
 
-  const handleStartMatch = () => {
+  const handleStartMatch = (previewMatch?: Match) => {
     if (!currentTournament) return;
 
     // Check for scheduled matches first
@@ -294,9 +294,11 @@ const App: React.FC = () => {
       return;
     }
 
-    // Generate single match
-    const playerViews = createPlayerViews(globalPlayers, currentTournament.players);
-    const nextMatch = generateNextMatch(playerViews, currentTournament.matches);
+    // Use preview match if provided, otherwise generate a new one
+    const nextMatch = previewMatch || generateNextMatch(
+      createPlayerViews(globalPlayers, currentTournament.players),
+      currentTournament.matches
+    );
 
     if (nextMatch) {
       const activeMatch = { ...nextMatch, status: 'active' as const };

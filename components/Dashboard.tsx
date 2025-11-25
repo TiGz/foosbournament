@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PlayerView, Match, GlobalPlayer, TournamentSettings } from '../types';
-import { getLeaderboard } from '../services/tournamentLogic';
-import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus, Camera, Settings } from 'lucide-react';
+import { getLeaderboard, generateNextMatch } from '../services/tournamentLogic';
+import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus, Camera, Settings, ChevronDown } from 'lucide-react';
 import AvatarEditor from './AvatarEditor';
 import OptionsModal from './OptionsModal';
 
@@ -11,7 +11,7 @@ interface Props {
   globalPlayers: GlobalPlayer[];
   matches: Match[];
   tournamentName: string;
-  onStartMatch: () => void;
+  onStartMatch: (previewMatch?: Match) => void;
   onGenerateRound: () => void;
   onClearQueue: () => void;
   onExportData: () => void;
@@ -23,6 +23,8 @@ interface Props {
   onUpdateSettings: (settings: TournamentSettings) => void;
   onTogglePlayerAvailability: (id: string) => void;
 }
+
+type LeaderboardMode = 'leaderboard' | 'leastPlayed';
 
 const Dashboard: React.FC<Props> = ({
     players,
@@ -42,10 +44,9 @@ const Dashboard: React.FC<Props> = ({
     onTogglePlayerAvailability
 }) => {
   const isPositionMode = settings.isPositionMode;
-  const leaderboard = getLeaderboard(players);
   const completedMatches = matches.filter(m => m.status === 'completed').sort((a, b) => b.timestamp - a.timestamp);
   const scheduledMatches = matches.filter(m => m.status === 'scheduled');
-  
+
   const recentMatches = completedMatches.slice(0, 5);
   const totalGames = completedMatches.length;
   const totalGoals = players.reduce((acc, p) => acc + p.goalsScored, 0);
@@ -56,6 +57,54 @@ const Dashboard: React.FC<Props> = ({
   const [showCancelRoundConfirm, setShowCancelRoundConfirm] = useState(false);
   const [editingAvatarPlayer, setEditingAvatarPlayer] = useState<GlobalPlayer | null>(null);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
+
+  // Leaderboard mode state
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>('leaderboard');
+
+  // Next match preview state (for single match mode)
+  const [previewMatch, setPreviewMatch] = useState<Match | null>(null);
+
+  // Player modal tab state
+  const [playerModalTab, setPlayerModalTab] = useState<'stats' | 'history'>('stats');
+
+  // Sorted players based on leaderboard mode
+  const sortedPlayers = useMemo(() => {
+    if (leaderboardMode === 'leastPlayed') {
+      return [...players].sort((a, b) => a.gamesPlayed - b.gamesPlayed);
+    }
+    return getLeaderboard(players);
+  }, [players, leaderboardMode]);
+
+  // Generate preview match when in single match mode and players change
+  useEffect(() => {
+    if (scheduledMatches.length === 0 && canStartMatch) {
+      const nextMatch = generateNextMatch(players, matches);
+      setPreviewMatch(nextMatch);
+    } else {
+      setPreviewMatch(null);
+    }
+  }, [players, matches, scheduledMatches.length, canStartMatch]);
+
+  // Reset player modal tab when selecting a new player
+  useEffect(() => {
+    if (selectedPlayer) {
+      setPlayerModalTab('stats');
+    }
+  }, [selectedPlayer?.id]);
+
+  // Handler to refresh the preview match
+  const handleRefreshPreview = () => {
+    const nextMatch = generateNextMatch(players, matches);
+    setPreviewMatch(nextMatch);
+  };
+
+  // Get matches for a specific player
+  const getPlayerMatches = (playerId: string): Match[] => {
+    return completedMatches.filter(m =>
+      m.team1.attackerId === playerId || m.team1.defenderId === playerId ||
+      m.team2.attackerId === playerId || m.team2.defenderId === playerId
+    );
+  };
 
   // Helper to get formatted name for a team
   const getTeamNames = (team: any) => {
@@ -77,37 +126,49 @@ const Dashboard: React.FC<Props> = ({
       {/* Left Sidebar: Leaderboard */}
       <div className="w-[140px] md:w-1/4 md:min-w-[280px] bg-foos-panel border-r border-slate-800 flex flex-col shadow-2xl z-10 flex-shrink-0">
         <div className="p-2 md:p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-20">
-          <h2 className="text-sm md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-foos-gold to-yellow-200 flex items-center gap-1 md:gap-2 italic uppercase">
-            <Crown className="w-4 h-4 md:w-5 md:h-5 text-foos-gold" />
-            <span className="hidden md:inline">Leaderboard</span>
-            <span className="md:hidden">Ranks</span>
-          </h2>
-          <p className="text-slate-500 text-[8px] md:text-[10px] font-bold tracking-wider mt-0.5 uppercase hidden md:block">{settings.winningScore}-0 = Unicorn {settings.unicornBonus > 0 ? `(+${settings.unicornBonus} pt${settings.unicornBonus > 1 ? 's' : ''})` : '(No bonus)'}</p>
+          <button
+            onClick={() => setLeaderboardMode(prev => prev === 'leaderboard' ? 'leastPlayed' : 'leaderboard')}
+            className="flex items-center gap-1 md:gap-2 group w-full"
+          >
+            <h2 className="text-sm md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-foos-gold to-yellow-200 flex items-center gap-1 md:gap-2 italic uppercase">
+              <Crown className="w-4 h-4 md:w-5 md:h-5 text-foos-gold" />
+              <span className="hidden md:inline">{leaderboardMode === 'leaderboard' ? 'Leaderboard' : 'Least Played'}</span>
+              <span className="md:hidden">{leaderboardMode === 'leaderboard' ? 'Ranks' : 'Played'}</span>
+            </h2>
+            <ChevronDown className="w-3 h-3 md:w-4 md:h-4 text-foos-gold/50 group-hover:text-foos-gold transition" />
+          </button>
+          <p className="text-slate-500 text-[8px] md:text-[10px] font-bold tracking-wider mt-0.5 uppercase hidden md:block">
+            {leaderboardMode === 'leaderboard'
+              ? `${settings.winningScore}-0 = Unicorn ${settings.unicornBonus > 0 ? `(+${settings.unicornBonus} pt${settings.unicornBonus > 1 ? 's' : ''})` : '(No bonus)'}`
+              : 'Sorted by games played'}
+          </p>
         </div>
         
         <div className="flex-1 overflow-y-auto p-1.5 md:p-3 space-y-1 md:space-y-2">
-          {leaderboard.map((player, index) => (
+          {sortedPlayers.map((player, index) => (
             <div
               key={player.id}
               className={`relative flex items-center p-1.5 md:p-3 rounded-lg md:rounded-xl border transition-all duration-300 group ${
                 !player.isAvailable ? 'opacity-50 grayscale border-slate-800 bg-slate-900' :
-                index === 0
+                leaderboardMode === 'leaderboard' && index === 0
                   ? 'bg-gradient-to-br from-amber-500/10 to-transparent border-amber-500/30 shadow-amber-900/10 shadow-lg'
                   : 'bg-slate-900 border-slate-800 hover:border-slate-600'
               }`}
             >
-               {/* Rank Badge */}
-               <div className={`absolute -left-1 md:-left-2 top-1/2 -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border-2 ${
-                   !player.isAvailable ? 'bg-slate-800 text-slate-500 border-slate-600' :
-                   index === 0 ? 'bg-foos-gold text-slate-900 border-white' : 'bg-slate-800 text-slate-400 border-slate-700'
-               }`}>
-                   {index + 1}
-               </div>
+               {/* Rank Badge (only in leaderboard mode) */}
+               {leaderboardMode === 'leaderboard' && (
+                 <div className={`absolute -left-1 md:-left-2 top-1/2 -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border-2 ${
+                     !player.isAvailable ? 'bg-slate-800 text-slate-500 border-slate-600' :
+                     index === 0 ? 'bg-foos-gold text-slate-900 border-white' : 'bg-slate-800 text-slate-400 border-slate-700'
+                 }`}>
+                     {index + 1}
+                 </div>
+               )}
 
               {/* Avatar - Clickable (hidden on mobile) */}
               <div
                 onClick={() => setSelectedPlayer(player)}
-                className="hidden md:flex w-10 h-10 rounded-full overflow-hidden border-2 border-slate-700 ml-3 flex-shrink-0 bg-slate-800 cursor-pointer hover:scale-105 hover:border-foos-accent transition"
+                className={`hidden md:flex w-10 h-10 rounded-full overflow-hidden border-2 border-slate-700 flex-shrink-0 bg-slate-800 cursor-pointer hover:scale-105 hover:border-foos-accent transition ${leaderboardMode === 'leaderboard' ? 'ml-3' : 'ml-1'}`}
               >
                 {player.photoUrl ? (
                     <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
@@ -116,16 +177,16 @@ const Dashboard: React.FC<Props> = ({
                 )}
               </div>
 
-              <div className="ml-4 md:ml-3 flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedPlayer(player)}>
+              <div className={`flex-1 min-w-0 cursor-pointer ${leaderboardMode === 'leaderboard' ? 'ml-4 md:ml-3' : 'ml-2 md:ml-3'}`} onClick={() => setSelectedPlayer(player)}>
                 <div className="flex items-center gap-1 md:gap-2">
-                    <div className={`font-bold truncate text-[11px] md:text-sm leading-tight ${index===0 ? 'text-foos-gold' : 'text-slate-200'}`}>{player.nickname}</div>
-                    {player.unicorns > 0 && (
+                    <div className={`font-bold truncate text-[11px] md:text-sm leading-tight ${leaderboardMode === 'leaderboard' && index===0 ? 'text-foos-gold' : 'text-slate-200'}`}>{player.nickname}</div>
+                    {leaderboardMode === 'leaderboard' && player.unicorns > 0 && (
                          <div className="hidden md:flex items-center text-[10px] text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded-full border border-pink-500/20 gap-0.5" title={`${player.unicorns} Unicorns`}>
                              <Sparkles className="w-3 h-3" /> {player.unicorns}
                          </div>
                     )}
                 </div>
-                {isPositionMode && (
+                {leaderboardMode === 'leaderboard' && isPositionMode && (
                     <div className="hidden md:flex gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
                         <span className="flex items-center gap-0.5"><Sword className="w-2 h-2"/> {player.attackPlayed}</span>
                         <span className="flex items-center gap-0.5"><Shield className="w-2 h-2"/> {player.defensePlayed}</span>
@@ -134,7 +195,11 @@ const Dashboard: React.FC<Props> = ({
               </div>
 
               <div className="text-right flex flex-col items-end gap-0.5">
-                <div className="text-sm md:text-xl font-black text-foos-accent tabular-nums leading-none">{player.points}</div>
+                {leaderboardMode === 'leaderboard' ? (
+                  <div className="text-sm md:text-xl font-black text-foos-accent tabular-nums leading-none">{player.points}</div>
+                ) : (
+                  <div className="text-sm md:text-lg font-bold text-slate-400 tabular-nums leading-none">{player.gamesPlayed} <span className="text-[10px] md:text-xs text-slate-600">games</span></div>
+                )}
 
                 <div onClick={(e) => e.stopPropagation()} className="hidden md:block">
                     <button
@@ -241,20 +306,95 @@ const Dashboard: React.FC<Props> = ({
                                 </>
                             ) : (
                                 <>
-                                    <div className="w-12 h-12 md:w-16 md:h-16 bg-foos-brand/10 rounded-full flex items-center justify-center mb-3 md:mb-4 ring-1 ring-foos-brand/30">
-                                        <Zap className="w-6 h-6 md:w-8 md:h-8 text-foos-brand" />
+                                    {/* Header with refresh button */}
+                                    <div className="flex items-center justify-between w-full mb-3 md:mb-4">
+                                        <h3 className="text-base md:text-lg font-black text-white uppercase italic tracking-wide">Next Match</h3>
+                                        <button
+                                            onClick={handleRefreshPreview}
+                                            disabled={!canStartMatch}
+                                            className="p-2 text-slate-500 hover:text-foos-accent hover:bg-slate-800 rounded-lg transition disabled:opacity-50"
+                                            title="Shuffle players"
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <h3 className="text-lg md:text-xl font-black text-white mb-2 uppercase italic">Generate Matches</h3>
-                                    <p className="text-slate-500 text-xs md:text-sm mb-4 md:mb-6">
-                                        Ready for the next clash?
-                                    </p>
+
+                                    {/* Match Preview */}
+                                    {previewMatch && canStartMatch ? (
+                                        <div className="w-full mb-4 md:mb-6">
+                                            <div className="flex items-center justify-between gap-2 md:gap-4">
+                                                {/* Team 1 */}
+                                                <div className="flex-1 flex flex-col items-center gap-1.5 md:gap-2">
+                                                    <div className="text-[10px] md:text-xs font-bold text-foos-blue uppercase tracking-wider">Blue</div>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {[previewMatch.team1.attackerId, previewMatch.team1.defenderId].map((playerId, idx) => {
+                                                            const player = players.find(p => p.id === playerId);
+                                                            return (
+                                                                <div key={playerId} className="flex items-center gap-1.5 md:gap-2">
+                                                                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-800 overflow-hidden border-2 border-foos-blue/50 flex-shrink-0">
+                                                                        {player?.photoUrl ? (
+                                                                            <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">{player?.nickname.charAt(0)}</div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-left min-w-0">
+                                                                        <div className="text-[11px] md:text-xs font-bold text-slate-200 truncate max-w-[60px] md:max-w-[80px]">{player?.nickname}</div>
+                                                                        {isPositionMode && (
+                                                                            <div className="text-[8px] md:text-[9px] text-slate-500 uppercase">{idx === 0 ? 'ATK' : 'DEF'}</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* VS */}
+                                                <div className="text-slate-700 font-black text-sm md:text-base">VS</div>
+
+                                                {/* Team 2 */}
+                                                <div className="flex-1 flex flex-col items-center gap-1.5 md:gap-2">
+                                                    <div className="text-[10px] md:text-xs font-bold text-foos-red uppercase tracking-wider">Red</div>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {[previewMatch.team2.attackerId, previewMatch.team2.defenderId].map((playerId, idx) => {
+                                                            const player = players.find(p => p.id === playerId);
+                                                            return (
+                                                                <div key={playerId} className="flex items-center gap-1.5 md:gap-2 flex-row-reverse">
+                                                                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-slate-800 overflow-hidden border-2 border-foos-red/50 flex-shrink-0">
+                                                                        {player?.photoUrl ? (
+                                                                            <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-500">{player?.nickname.charAt(0)}</div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-right min-w-0">
+                                                                        <div className="text-[11px] md:text-xs font-bold text-slate-200 truncate max-w-[60px] md:max-w-[80px]">{player?.nickname}</div>
+                                                                        {isPositionMode && (
+                                                                            <div className="text-[8px] md:text-[9px] text-slate-500 uppercase">{idx === 0 ? 'ATK' : 'DEF'}</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-500 text-xs md:text-sm mb-4 md:mb-6">
+                                            {canStartMatch ? 'Generating match...' : 'Need more players'}
+                                        </p>
+                                    )}
+
+                                    {/* Action Buttons */}
                                     <div className="flex flex-col gap-2 md:gap-3 w-full">
                                         <button
-                                            onClick={onStartMatch}
-                                            disabled={!canStartMatch}
-                                            className="w-full bg-gradient-to-r from-foos-brand to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-black text-sm md:text-lg py-3 md:py-4 rounded-xl shadow-lg shadow-orange-500/20 transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide"
+                                            onClick={() => previewMatch ? onStartMatch(previewMatch) : onStartMatch()}
+                                            disabled={!canStartMatch || !previewMatch}
+                                            className="w-full bg-gradient-to-r from-foos-brand to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-black text-sm md:text-lg py-3 md:py-4 rounded-xl shadow-lg shadow-orange-500/20 transition transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wide disabled:opacity-50 disabled:hover:scale-100"
                                         >
-                                            <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> Single Match
+                                            <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> Start Match
                                         </button>
                                         <button
                                             onClick={onGenerateRound}
@@ -449,58 +589,169 @@ const Dashboard: React.FC<Props> = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 landscape:gap-2 mb-4 landscape:mb-3">
-                             <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
-                                 <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Win Rate</div>
-                                 <div className="text-lg landscape:text-base font-bold text-white">
-                                     {selectedPlayer.gamesPlayed > 0 ? Math.round((selectedPlayer.wins / selectedPlayer.gamesPlayed) * 100) : 0}%
-                                 </div>
-                             </div>
-                             <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
-                                 <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Unicorns</div>
-                                 <div className="text-lg landscape:text-base font-bold text-pink-400 flex justify-center items-center gap-1">
-                                    <Sparkles className="w-4 h-4" /> {selectedPlayer.unicorns}
-                                 </div>
-                             </div>
-                             <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
-                                 <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Matches</div>
-                                 <div className="text-lg landscape:text-base font-bold text-white">{selectedPlayer.gamesPlayed}</div>
-                             </div>
+                        {/* Tab Bar */}
+                        <div className="flex gap-1 mb-4 border-b border-slate-800">
+                            <button
+                                onClick={() => setPlayerModalTab('stats')}
+                                className={`px-4 py-2 font-bold text-xs uppercase tracking-wider transition border-b-2 -mb-px ${
+                                    playerModalTab === 'stats'
+                                        ? 'text-foos-accent border-foos-accent'
+                                        : 'text-slate-500 border-transparent hover:text-slate-300'
+                                }`}
+                            >
+                                Stats
+                            </button>
+                            <button
+                                onClick={() => setPlayerModalTab('history')}
+                                className={`px-4 py-2 font-bold text-xs uppercase tracking-wider transition border-b-2 -mb-px ${
+                                    playerModalTab === 'history'
+                                        ? 'text-foos-accent border-foos-accent'
+                                        : 'text-slate-500 border-transparent hover:text-slate-300'
+                                }`}
+                            >
+                                History
+                            </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 landscape:gap-2 mb-4 landscape:mb-3">
-                            <div className="text-left bg-slate-900 p-2.5 landscape:p-2 rounded-lg border border-slate-800">
-                                <h4 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">POSITIONS</h4>
-                                <div className="space-y-0.5 text-sm landscape:text-xs">
-                                    <div className="flex justify-between text-slate-300"><span>Attack:</span> <span className="font-mono text-white">{selectedPlayer.attackPlayed}</span></div>
-                                    <div className="flex justify-between text-slate-300"><span>Defense:</span> <span className="font-mono text-white">{selectedPlayer.defensePlayed}</span></div>
+                        {/* Stats Tab Content */}
+                        {playerModalTab === 'stats' && (
+                            <>
+                                <div className="grid grid-cols-3 gap-3 landscape:gap-2 mb-4 landscape:mb-3">
+                                     <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
+                                         <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Win Rate</div>
+                                         <div className="text-lg landscape:text-base font-bold text-white">
+                                             {selectedPlayer.gamesPlayed > 0 ? Math.round((selectedPlayer.wins / selectedPlayer.gamesPlayed) * 100) : 0}%
+                                         </div>
+                                     </div>
+                                     <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
+                                         <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Unicorns</div>
+                                         <div className="text-lg landscape:text-base font-bold text-pink-400 flex justify-center items-center gap-1">
+                                            <Sparkles className="w-4 h-4" /> {selectedPlayer.unicorns}
+                                         </div>
+                                     </div>
+                                     <div className="bg-slate-900 p-2.5 landscape:p-2 rounded-xl border border-slate-800">
+                                         <div className="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Matches</div>
+                                         <div className="text-lg landscape:text-base font-bold text-white">{selectedPlayer.gamesPlayed}</div>
+                                     </div>
                                 </div>
-                            </div>
-                            <div className="text-left bg-slate-900 p-2.5 landscape:p-2 rounded-lg border border-slate-800">
-                                <h4 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">GOALS</h4>
-                                <div className="space-y-0.5 text-sm landscape:text-xs">
-                                    <div className="flex justify-between text-slate-300"><span>Scored:</span> <span className="font-mono text-foos-accent">{selectedPlayer.goalsScored}</span></div>
-                                    <div className="flex justify-between text-slate-300"><span>Conceded:</span> <span className="font-mono text-foos-red">{selectedPlayer.goalsConceded}</span></div>
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Availability Toggle */}
-                        <button
-                            onClick={() => {
-                                onTogglePlayerAvailability(selectedPlayer.id);
-                                // Update the local state to reflect the change
-                                setSelectedPlayer({...selectedPlayer, isAvailable: !selectedPlayer.isAvailable});
-                            }}
-                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wide transition ${
-                                selectedPlayer.isAvailable
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
-                                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            }`}
-                        >
-                            <Power className="w-4 h-4" />
-                            {selectedPlayer.isAvailable ? 'Mark as Away' : 'Mark as Available'}
-                        </button>
+                                <div className="grid grid-cols-2 gap-3 landscape:gap-2 mb-4 landscape:mb-3">
+                                    <div className="text-left bg-slate-900 p-2.5 landscape:p-2 rounded-lg border border-slate-800">
+                                        <h4 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">POSITIONS</h4>
+                                        <div className="space-y-0.5 text-sm landscape:text-xs">
+                                            <div className="flex justify-between text-slate-300"><span>Attack:</span> <span className="font-mono text-white">{selectedPlayer.attackPlayed}</span></div>
+                                            <div className="flex justify-between text-slate-300"><span>Defense:</span> <span className="font-mono text-white">{selectedPlayer.defensePlayed}</span></div>
+                                        </div>
+                                    </div>
+                                    <div className="text-left bg-slate-900 p-2.5 landscape:p-2 rounded-lg border border-slate-800">
+                                        <h4 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">GOALS</h4>
+                                        <div className="space-y-0.5 text-sm landscape:text-xs">
+                                            <div className="flex justify-between text-slate-300"><span>Scored:</span> <span className="font-mono text-foos-accent">{selectedPlayer.goalsScored}</span></div>
+                                            <div className="flex justify-between text-slate-300"><span>Conceded:</span> <span className="font-mono text-foos-red">{selectedPlayer.goalsConceded}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Availability Toggle */}
+                                <button
+                                    onClick={() => {
+                                        onTogglePlayerAvailability(selectedPlayer.id);
+                                        // Update the local state to reflect the change
+                                        setSelectedPlayer({...selectedPlayer, isAvailable: !selectedPlayer.isAvailable});
+                                    }}
+                                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm uppercase tracking-wide transition ${
+                                        selectedPlayer.isAvailable
+                                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    }`}
+                                >
+                                    <Power className="w-4 h-4" />
+                                    {selectedPlayer.isAvailable ? 'Mark as Away' : 'Mark as Available'}
+                                </button>
+                            </>
+                        )}
+
+                        {/* History Tab Content */}
+                        {playerModalTab === 'history' && (
+                            <div className="max-h-[300px] overflow-y-auto space-y-2">
+                                {getPlayerMatches(selectedPlayer.id).length === 0 ? (
+                                    <div className="text-center text-slate-500 py-8 text-sm">
+                                        No matches played yet.
+                                    </div>
+                                ) : (
+                                    getPlayerMatches(selectedPlayer.id).map(match => {
+                                        const isTeam1 = match.team1.attackerId === selectedPlayer.id || match.team1.defenderId === selectedPlayer.id;
+                                        const playerTeam = isTeam1 ? match.team1 : match.team2;
+                                        const opponentTeam = isTeam1 ? match.team2 : match.team1;
+                                        const isWinner = (isTeam1 && match.winner === 'team1') || (!isTeam1 && match.winner === 'team2');
+                                        const isAttacker = playerTeam.attackerId === selectedPlayer.id;
+                                        const teammateId = isAttacker ? playerTeam.defenderId : playerTeam.attackerId;
+                                        const teammate = players.find(p => p.id === teammateId);
+                                        const opponent1 = players.find(p => p.id === opponentTeam.attackerId);
+                                        const opponent2 = players.find(p => p.id === opponentTeam.defenderId);
+                                        const isUnicorn = playerTeam.score === settings.winningScore && opponentTeam.score === 0;
+
+                                        return (
+                                            <div key={match.id} className={`bg-slate-900 rounded-lg p-3 border ${isWinner ? 'border-emerald-500/30' : 'border-slate-800'} text-left relative`}>
+                                                {isUnicorn && (
+                                                    <div className="absolute top-1 right-1 text-pink-400">
+                                                        <Sparkles className="w-3 h-3" />
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isWinner ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                        {isWinner ? 'WIN' : 'LOSS'}
+                                                    </span>
+                                                    <span className="text-lg font-black tabular-nums">
+                                                        <span className={isWinner ? 'text-emerald-400' : 'text-slate-500'}>{playerTeam.score}</span>
+                                                        <span className="text-slate-600 mx-1">-</span>
+                                                        <span className={!isWinner ? 'text-red-400' : 'text-slate-500'}>{opponentTeam.score}</span>
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-slate-500">With:</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-5 h-5 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
+                                                                {teammate?.photoUrl ? (
+                                                                    <img src={teammate.photoUrl} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="flex items-center justify-center h-full text-[8px]">{teammate?.nickname.charAt(0)}</div>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-slate-300 font-medium">{teammate?.nickname}</span>
+                                                        </div>
+                                                    </div>
+                                                    {isPositionMode && (
+                                                        <span className="text-[10px] text-slate-500 uppercase">{isAttacker ? 'ATK' : 'DEF'}</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1 text-xs">
+                                                    <span className="text-slate-500">vs:</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-5 h-5 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
+                                                            {opponent1?.photoUrl ? (
+                                                                <img src={opponent1.photoUrl} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="flex items-center justify-center h-full text-[8px]">{opponent1?.nickname.charAt(0)}</div>
+                                                            )}
+                                                        </div>
+                                                        <div className="w-5 h-5 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
+                                                            {opponent2?.photoUrl ? (
+                                                                <img src={opponent2.photoUrl} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="flex items-center justify-center h-full text-[8px]">{opponent2?.nickname.charAt(0)}</div>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-slate-300 font-medium">{opponent1?.nickname} & {opponent2?.nickname}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
