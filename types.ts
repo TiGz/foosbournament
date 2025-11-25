@@ -74,12 +74,15 @@ export interface TournamentSettings {
   isPositionMode: boolean;
   winningScore: number;       // First to N (1-20, default 10)
   unicornBonus: 0 | 1 | 2;    // Bonus points for 10-0 shutout
+  voiceAnnouncements: boolean; // Announce player names and scores via speech
+  voiceName?: string;         // Selected voice name for speech synthesis
 }
 
 export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
   isPositionMode: true,
   winningScore: 10,
   unicornBonus: 1,
+  voiceAnnouncements: true,
 };
 
 // Full tournament data

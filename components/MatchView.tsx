@@ -61,6 +61,112 @@ const playWinSound = (isUnicorn: boolean) => {
   }
 };
 
+// Speech synthesis using Web Speech API
+const speak = (text: string, voiceName?: string) => {
+  try {
+    // Skip if offline (some voices require network) or speech not supported
+    if (!('speechSynthesis' in window)) {
+      return;
+    }
+
+    window.speechSynthesis.cancel(); // Clear any pending speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // Set voice if specified
+    if (voiceName) {
+      const voices = window.speechSynthesis.getVoices();
+      const selectedVoice = voices.find(v => v.name === voiceName);
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+    }
+
+    // Handle errors silently (e.g., offline mode, voice unavailable)
+    utterance.onerror = () => {};
+
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // Fail silently - speech is non-critical
+  }
+};
+
+// Match start announcement templates
+const getMatchStartAnnouncement = (
+  t1Attacker: string,
+  t1Defender: string,
+  t2Attacker: string,
+  t2Defender: string,
+  isPositionMode: boolean
+): string => {
+  const blue = isPositionMode
+    ? `${t1Attacker} on attack and ${t1Defender} on defense`
+    : `${t1Attacker} and ${t1Defender}`;
+  const red = isPositionMode
+    ? `${t2Attacker} on attack and ${t2Defender} on defense`
+    : `${t2Attacker} and ${t2Defender}`;
+
+  const templates = [
+    `Ladies and gentlemen, it's foosball time! Blue team: ${blue}. Red team: ${red}. Let the spinning begin!`,
+    `Welcome to the thunderdome! In the blue corner: ${blue}. In the red corner: ${red}. May the best spinners win!`,
+    `Alright folks, prepare for glory! Blue team has ${blue}. Red team has ${red}. Game on!`,
+    `The table is set, the rods are ready! Blue: ${blue}. Red: ${red}. Let's get twisty!`,
+    `It's showtime! Representing blue: ${blue}. Representing red: ${red}. Time to spin to win!`,
+    `Hold onto your handles! Blue team: ${blue}. Red team: ${red}. This is gonna be good!`,
+    `The foosball gods demand entertainment! Blue brings ${blue}. Red brings ${red}. Fight!`,
+    `Clear the area, champions approaching! Blue: ${blue}. Red: ${red}. Let the battle commence!`,
+    `Breaking news: Epic foosball match about to begin! Blue team: ${blue}. Red team: ${red}. Stay tuned!`,
+    `Warming up the table for ${blue} in blue versus ${red} in red. Three, two, one, go!`,
+  ];
+
+  return templates[Math.floor(Math.random() * templates.length)];
+};
+
+// Match end announcement templates
+const getMatchEndAnnouncement = (
+  winnerPlayer1: string,
+  winnerPlayer2: string,
+  winnerScore: number,
+  loserScore: number,
+  isUnicorn: boolean
+): string => {
+  const winners = `${winnerPlayer1} and ${winnerPlayer2}`;
+  const score = `${winnerScore} to ${loserScore}`;
+
+  if (isUnicorn) {
+    const unicornTemplates = [
+      `Unicorn alert! ${winners} just served up a perfect ${winnerScore} to zero shutout! Absolute legends!`,
+      `Holy smokes! ${winners} just unicorned their opponents! ${winnerScore} nil! That's gotta hurt!`,
+      `A unicorn appears! ${winners} win ${winnerScore} to nothing! Someone call the mercy rule!`,
+      `Flawless victory! ${winners} absolutely destroyed the competition! ${winnerScore} zero! Savage!`,
+      `Is this even legal? ${winners} just delivered a ${winnerScore} to zero beatdown! Unicorn achieved!`,
+      `Witness the unicorn! ${winners} with the perfect game! ${winnerScore} zip! Get rekt!`,
+      `Legendary performance! ${winners} score ${winnerScore}, opponents score their dignity: zero!`,
+      `Someone check if that was even fair! ${winners} unicorn with ${winnerScore} to absolutely nothing!`,
+      `The prophecy is fulfilled! ${winners} with the mystical unicorn! ${winnerScore} nil!`,
+      `Emergency! ${winners} just committed foosball murder! ${winnerScore} to zero! No survivors!`,
+    ];
+    return unicornTemplates[Math.floor(Math.random() * unicornTemplates.length)];
+  }
+
+  const regularTemplates = [
+    `And that's the game! ${winners} take it ${score}! Well played!`,
+    `Victory belongs to ${winners}! Final score: ${score}. What a match!`,
+    `Game over! ${winners} emerge victorious, ${score}! The crowd goes mild!`,
+    `${winners} claim the win, ${score}! Time to update the leaderboard!`,
+    `That's a wrap! ${winners} win it ${score}! Someone's buying the drinks!`,
+    `The dust settles and ${winners} stand tall! ${score}! Champions!`,
+    `Ding ding ding! ${winners} are your winners at ${score}! High fives all around!`,
+    `And just like that, ${winners} seal the deal! ${score}! Boom!`,
+    `Pack it up folks, ${winners} got this one ${score}! Better luck next time!`,
+    `History is made! ${winners} win ${score}! The legend grows!`,
+  ];
+
+  return regularTemplates[Math.floor(Math.random() * regularTemplates.length)];
+};
+
 interface Props {
   match: Match;
   players: PlayerView[];
@@ -112,6 +218,23 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onUpdateScore, onUndo, onRedo]);
 
+  // Announce match start
+  useEffect(() => {
+    if (settings.voiceAnnouncements) {
+      const announcement = getMatchStartAnnouncement(
+        t1Attacker?.nickname || 'Unknown',
+        t1Defender?.nickname || 'Unknown',
+        t2Attacker?.nickname || 'Unknown',
+        t2Defender?.nickname || 'Unknown',
+        isPositionMode
+      );
+      // Small delay to let the view render first
+      const timer = setTimeout(() => speak(announcement, settings.voiceName), 300);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
   const isWinner1 = match.team1.score >= winningScore;
   const isWinner2 = match.team2.score >= winningScore;
 
@@ -123,19 +246,49 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
       setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
       playWinSound(unicornWin);
+      // Announce win after sound completes (unicorn ~1.1s, regular ~0.5s)
+      if (settings.voiceAnnouncements) {
+        const soundDuration = unicornWin ? 1200 : 600;
+        setTimeout(() => {
+          speak(getMatchEndAnnouncement(
+            t1Attacker?.nickname || 'Unknown',
+            t1Defender?.nickname || 'Unknown',
+            match.team1.score,
+            match.team2.score,
+            unicornWin
+          ), settings.voiceName);
+        }, soundDuration);
+      }
     } else if (isWinner2 && winningTeam !== 'team2') {
       const unicornWin = match.team1.score === 0;
       setWinningTeam('team2');
       setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
       playWinSound(unicornWin);
+      // Announce win after sound completes
+      if (settings.voiceAnnouncements) {
+        const soundDuration = unicornWin ? 1200 : 600;
+        setTimeout(() => {
+          speak(getMatchEndAnnouncement(
+            t2Attacker?.nickname || 'Unknown',
+            t2Defender?.nickname || 'Unknown',
+            match.team2.score,
+            match.team1.score,
+            unicornWin
+          ), settings.voiceName);
+        }, soundDuration);
+      }
     } else if (!isWinner1 && !isWinner2 && winningTeam) {
       // Reset if score drops below winning (undo scenario)
       setWinningTeam(null);
       setIsUnicorn(false);
       setShowWinAnimation(false);
+      // Cancel any pending speech on undo
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     }
-  }, [isWinner1, isWinner2, winningTeam, match.team1.score, match.team2.score]);
+  }, [isWinner1, isWinner2, winningTeam, match.team1.score, match.team2.score, settings.voiceAnnouncements]);
 
   // Render a single player avatar at a specific percentage position
   const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TournamentSettings } from '../types';
-import { X, Shield, Sparkles, Target, AlertTriangle } from 'lucide-react';
+import { X, Shield, Sparkles, Target, AlertTriangle, Volume2, ChevronDown } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +19,53 @@ const OptionsModal: React.FC<Props> = ({
 }) => {
   const [localSettings, setLocalSettings] = useState<TournamentSettings>(settings);
   const [showWarning, setShowWarning] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Load available voices (English only)
+  useEffect(() => {
+    const loadVoices = () => {
+      if ('speechSynthesis' in window) {
+        const voices = window.speechSynthesis.getVoices();
+        // Filter to English voices only
+        const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+        setAvailableVoices(englishVoices);
+
+        // Set default voice to Google UK English Female if available and no voice selected
+        if (!localSettings.voiceName) {
+          const googleUKFemale = englishVoices.find(v => v.name === 'Google UK English Female');
+          if (googleUKFemale) {
+            setLocalSettings(prev => ({ ...prev, voiceName: googleUKFemale.name }));
+          }
+        }
+      }
+    };
+
+    loadVoices();
+    // Voices may load asynchronously
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // Preview voice when selection changes
+  const previewVoice = (voiceName: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance('Game on!');
+      const voice = availableVoices.find(v => v.name === voiceName);
+      if (voice) {
+        utterance.voice = voice;
+      }
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -159,6 +206,63 @@ const OptionsModal: React.FC<Props> = ({
                 }`} />
               </div>
             </button>
+          </div>
+
+          {/* Voice Announcements */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Volume2 className="w-4 h-4 text-foos-accent" />
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Voice Announcements</span>
+            </div>
+            <button
+              onClick={() => setLocalSettings(prev => ({ ...prev, voiceAnnouncements: !prev.voiceAnnouncements }))}
+              className={`w-full flex items-center justify-between p-4 rounded-xl border transition ${
+                localSettings.voiceAnnouncements
+                  ? 'bg-foos-accent/10 border-foos-accent'
+                  : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+              }`}
+            >
+              <div className="text-left">
+                <div className={`font-bold ${localSettings.voiceAnnouncements ? 'text-foos-accent' : 'text-slate-400'}`}>
+                  {localSettings.voiceAnnouncements ? 'Enabled' : 'Disabled'}
+                </div>
+                <div className="text-slate-500 text-xs">
+                  Announce player names and scores
+                </div>
+              </div>
+              <div className={`w-12 h-7 rounded-full p-1 transition ${
+                localSettings.voiceAnnouncements ? 'bg-foos-accent' : 'bg-slate-700'
+              }`}>
+                <div className={`w-5 h-5 rounded-full bg-white shadow-md transition transform ${
+                  localSettings.voiceAnnouncements ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </div>
+            </button>
+
+            {/* Voice Selection Dropdown */}
+            {localSettings.voiceAnnouncements && availableVoices.length > 0 && (
+              <div className="mt-3 relative">
+                <select
+                  value={localSettings.voiceName || ''}
+                  onChange={(e) => {
+                    const voiceName = e.target.value || undefined;
+                    setLocalSettings(prev => ({ ...prev, voiceName }));
+                    if (voiceName) {
+                      previewVoice(voiceName);
+                    }
+                  }}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm appearance-none cursor-pointer hover:border-slate-600 focus:border-foos-accent focus:outline-none transition"
+                >
+                  <option value="">Default Voice</option>
+                  {availableVoices.map((voice) => (
+                    <option key={voice.name} value={voice.name}>
+                      {voice.name} {voice.lang ? `(${voice.lang})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            )}
           </div>
         </div>
 
