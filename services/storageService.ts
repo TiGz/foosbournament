@@ -1,4 +1,4 @@
-import { GlobalPlayer, TournamentData, TournamentSummary, AppState } from '../types';
+import { GlobalPlayer, TournamentData, TournamentSummary, AppState, DEFAULT_TOURNAMENT_SETTINGS } from '../types';
 
 // Storage keys
 const KEYS = {
@@ -59,11 +59,26 @@ export const saveTournamentList = (list: TournamentSummary[]) => {
 // Individual Tournament Data
 // ============================================
 
+// Migrate old tournament data to include settings
+const migrateTournamentData = (data: TournamentData): TournamentData => {
+  if (data.settings) {
+    return data;
+  }
+  // Migrate from old format - use legacy isPositionMode if it exists
+  return {
+    ...data,
+    settings: {
+      ...DEFAULT_TOURNAMENT_SETTINGS,
+      isPositionMode: data.isPositionMode ?? true,
+    },
+  };
+};
+
 export const loadTournament = (id: string): TournamentData | null => {
   try {
     const item = localStorage.getItem(KEYS.TOURNAMENT_PREFIX + id);
     if (!item) return null;
-    return JSON.parse(item);
+    return migrateTournamentData(JSON.parse(item));
   } catch (e) {
     console.error("Failed to load tournament", e);
     return null;

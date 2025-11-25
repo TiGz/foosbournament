@@ -69,13 +69,27 @@ export interface TournamentSummary {
   lastUpdatedAt: number;
 }
 
+// Tournament settings
+export interface TournamentSettings {
+  isPositionMode: boolean;
+  winningScore: number;       // First to N (1-20, default 10)
+  unicornBonus: 0 | 1 | 2;    // Bonus points for 10-0 shutout
+}
+
+export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
+  isPositionMode: true,
+  winningScore: 10,
+  unicornBonus: 1,
+};
+
 // Full tournament data
 export interface TournamentData {
   id: string;
   name: string;
   createdAt: number;
   lastUpdatedAt: number;
-  isPositionMode: boolean;
+  isPositionMode: boolean;    // Legacy - use settings.isPositionMode
+  settings?: TournamentSettings;
   players: TournamentPlayer[];
   matches: Match[];
 }

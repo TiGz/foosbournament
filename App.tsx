@@ -7,6 +7,8 @@ import {
   PlayerView,
   Match,
   AppView,
+  TournamentSettings,
+  DEFAULT_TOURNAMENT_SETTINGS,
 } from './types';
 import Lobby from './components/Lobby';
 import PlayerSetup from './components/PlayerSetup';
@@ -14,7 +16,7 @@ import MatchView from './components/MatchView';
 import Dashboard from './components/Dashboard';
 import OfflineBanner from './components/OfflineBanner';
 import UpdatePrompt from './components/UpdatePrompt';
-import { generateNextMatch, generateMatchQueue, updatePlayerStats, WINNING_SCORE } from './services/tournamentLogic';
+import { generateNextMatch, generateMatchQueue, updatePlayerStats, getWinningScore, getUnicornBonus } from './services/tournamentLogic';
 import {
   loadGlobalPlayers,
   saveGlobalPlayers,
@@ -156,6 +158,7 @@ const App: React.FC = () => {
       createdAt: Date.now(),
       lastUpdatedAt: Date.now(),
       isPositionMode: true,
+      settings: { ...DEFAULT_TOURNAMENT_SETTINGS },
       players: [],
       matches: [],
     };
@@ -312,12 +315,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleTogglePositionMode = () => {
+  const handleUpdateSettings = (newSettings: TournamentSettings) => {
     if (!currentTournament) return;
 
     setCurrentTournament(prev => prev ? {
       ...prev,
-      isPositionMode: !prev.isPositionMode,
+      settings: newSettings,
+      isPositionMode: newSettings.isPositionMode, // Keep legacy field in sync
     } : null);
   };
 
@@ -407,8 +411,12 @@ const App: React.FC = () => {
   const handleFinishMatch = () => {
     if (!currentMatch || !currentTournament) return;
 
-    const winner = currentMatch.team1.score >= WINNING_SCORE ? 'team1' :
-                   currentMatch.team2.score >= WINNING_SCORE ? 'team2' : undefined;
+    const settings = currentTournament.settings ?? DEFAULT_TOURNAMENT_SETTINGS;
+    const winningScore = getWinningScore(settings);
+    const unicornBonus = getUnicornBonus(settings);
+
+    const winner = currentMatch.team1.score >= winningScore ? 'team1' :
+                   currentMatch.team2.score >= winningScore ? 'team2' : undefined;
 
     if (!winner) return;
 
@@ -416,7 +424,7 @@ const App: React.FC = () => {
 
     // Update tournament players
     const playerViews = createPlayerViews(globalPlayers, currentTournament.players);
-    const updatedPlayerViews = updatePlayerStats(playerViews, completedMatch);
+    const updatedPlayerViews = updatePlayerStats(playerViews, completedMatch, settings);
 
     // Map back to TournamentPlayer
     const updatedTournamentPlayers = currentTournament.players.map(tp => {
@@ -459,7 +467,7 @@ const App: React.FC = () => {
         lifetimeGoalsScored: gp.lifetimeGoalsScored + goalsFor,
         lifetimeGoalsConceded: gp.lifetimeGoalsConceded + goalsAgainst,
         lifetimeGamesPlayed: gp.lifetimeGamesPlayed + 1,
-        lifetimePoints: gp.lifetimePoints + (isWinner ? 1 : 0) + (isWinner && isUnicorn ? 1 : 0),
+        lifetimePoints: gp.lifetimePoints + (isWinner ? 1 : 0) + (isWinner && isUnicorn ? unicornBonus : 0),
         lifetimeUnicorns: gp.lifetimeUnicorns + (isWinner && isUnicorn ? 1 : 0),
       };
     }));
@@ -542,8 +550,8 @@ const App: React.FC = () => {
           onClearQueue={handleClearQueue}
           onExportData={handleExport}
           canStartMatch={playerViews.filter(p => p.isAvailable).length >= 4}
-          isPositionMode={currentTournament.isPositionMode}
-          onTogglePositionMode={handleTogglePositionMode}
+          settings={currentTournament.settings ?? DEFAULT_TOURNAMENT_SETTINGS}
+          onUpdateSettings={handleUpdateSettings}
           onTogglePlayerAvailability={handleTogglePlayerAvailability}
           onBackToLobby={handleBackToLobby}
           onEditRoster={handleEditRoster}
@@ -558,7 +566,7 @@ const App: React.FC = () => {
           onUpdateScore={handleUpdateScore}
           onFinishMatch={handleFinishMatch}
           onCancelMatch={handleCancelMatch}
-          isPositionMode={currentTournament.isPositionMode}
+          settings={currentTournament.settings ?? DEFAULT_TOURNAMENT_SETTINGS}
           onUndo={handleUndo}
           onRedo={handleRedo}
           canUndo={historyIndex > 0}

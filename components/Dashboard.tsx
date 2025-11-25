@@ -1,9 +1,10 @@
 
 import React, { useState } from 'react';
-import { PlayerView, Match, GlobalPlayer } from '../types';
+import { PlayerView, Match, GlobalPlayer, TournamentSettings } from '../types';
 import { getLeaderboard } from '../services/tournamentLogic';
-import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus, Camera } from 'lucide-react';
+import { Play, Download, Crown, History, Shield, Sword, Power, Sparkles, X, List, CalendarClock, Zap, AlertTriangle, RefreshCw, ArrowLeft, UserPlus, Camera, Settings } from 'lucide-react';
 import AvatarEditor from './AvatarEditor';
+import OptionsModal from './OptionsModal';
 
 interface Props {
   players: PlayerView[];
@@ -18,8 +19,8 @@ interface Props {
   onEditRoster: () => void;
   onUpdatePlayer: (player: GlobalPlayer) => void;
   canStartMatch: boolean;
-  isPositionMode: boolean;
-  onTogglePositionMode: () => void;
+  settings: TournamentSettings;
+  onUpdateSettings: (settings: TournamentSettings) => void;
   onTogglePlayerAvailability: (id: string) => void;
 }
 
@@ -36,10 +37,11 @@ const Dashboard: React.FC<Props> = ({
     onEditRoster,
     onUpdatePlayer,
     canStartMatch,
-    isPositionMode,
-    onTogglePositionMode,
+    settings,
+    onUpdateSettings,
     onTogglePlayerAvailability
 }) => {
+  const isPositionMode = settings.isPositionMode;
   const leaderboard = getLeaderboard(players);
   const completedMatches = matches.filter(m => m.status === 'completed').sort((a, b) => b.timestamp - a.timestamp);
   const scheduledMatches = matches.filter(m => m.status === 'scheduled');
@@ -53,6 +55,7 @@ const Dashboard: React.FC<Props> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showCancelRoundConfirm, setShowCancelRoundConfirm] = useState(false);
   const [editingAvatarPlayer, setEditingAvatarPlayer] = useState<GlobalPlayer | null>(null);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
 
   // Helper to get formatted name for a team
   const getTeamNames = (team: any) => {
@@ -79,7 +82,7 @@ const Dashboard: React.FC<Props> = ({
             <span className="hidden md:inline">Leaderboard</span>
             <span className="md:hidden">Ranks</span>
           </h2>
-          <p className="text-slate-500 text-[8px] md:text-[10px] font-bold tracking-wider mt-0.5 uppercase hidden md:block">10-0 = Unicorn (Bonus Point)</p>
+          <p className="text-slate-500 text-[8px] md:text-[10px] font-bold tracking-wider mt-0.5 uppercase hidden md:block">{settings.winningScore}-0 = Unicorn {settings.unicornBonus > 0 ? `(+${settings.unicornBonus} pt${settings.unicornBonus > 1 ? 's' : ''})` : '(No bonus)'}</p>
         </div>
         
         <div className="flex-1 overflow-y-auto p-1.5 md:p-3 space-y-1 md:space-y-2">
@@ -185,18 +188,14 @@ const Dashboard: React.FC<Props> = ({
                 <span className="text-[10px] md:text-xs font-bold uppercase tracking-wide hidden md:block">Roster</span>
               </button>
 
-              {/* Position Mode Toggle */}
+              {/* Settings Button */}
               <button
-                onClick={onTogglePositionMode}
-                className={`flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg border transition ${
-                    isPositionMode
-                    ? 'bg-foos-accent/10 border-foos-accent text-foos-accent'
-                    : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
-                }`}
+                onClick={() => setShowOptionsModal(true)}
+                className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg border transition bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+                title="Tournament Options"
               >
-                  {isPositionMode ? <Shield className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" /> : <Shield className="w-3.5 h-3.5 md:w-4 md:h-4" />}
-                  <span className="text-[10px] md:text-xs font-bold uppercase tracking-wide hidden md:block">Positional</span>
-                  <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${isPositionMode ? 'bg-foos-accent shadow-[0_0_8px_rgba(6,182,212,0.8)]' : 'bg-slate-600'}`}></div>
+                  <Settings className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                  <span className="text-[10px] md:text-xs font-bold uppercase tracking-wide hidden md:block">Options</span>
               </button>
 
               <button
@@ -610,6 +609,15 @@ const Dashboard: React.FC<Props> = ({
           }}
         />
       )}
+
+      {/* Options Modal */}
+      <OptionsModal
+        isOpen={showOptionsModal}
+        onClose={() => setShowOptionsModal(false)}
+        settings={settings}
+        onSave={onUpdateSettings}
+        hasCompletedMatches={completedMatches.length > 0}
+      />
 
     </div>
   );

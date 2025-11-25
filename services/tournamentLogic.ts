@@ -1,10 +1,24 @@
-import { PlayerView, Match, Team } from '../types';
+import { PlayerView, Match, Team, TournamentSettings, DEFAULT_TOURNAMENT_SETTINGS } from '../types';
 
+// Default constants (used as fallbacks)
 export const WINNING_SCORE = 10;
-
-// Scoring Constants
 export const POINTS_WIN = 1;
-export const POINTS_UNICORN_BONUS = 1; // Extra point for 10-0
+export const POINTS_UNICORN_BONUS = 1;
+
+// Helper to get settings with defaults
+export const getSettings = (settings?: TournamentSettings): TournamentSettings => {
+  return settings ?? DEFAULT_TOURNAMENT_SETTINGS;
+};
+
+// Get winning score from settings
+export const getWinningScore = (settings?: TournamentSettings): number => {
+  return getSettings(settings).winningScore;
+};
+
+// Get unicorn bonus from settings
+export const getUnicornBonus = (settings?: TournamentSettings): number => {
+  return getSettings(settings).unicornBonus;
+};
 
 // Helper to create a UUID-like string
 export const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -42,15 +56,24 @@ export const getLeaderboard = (players: PlayerView[]): PlayerView[] => {
   });
 };
 
+// Check if a match is a unicorn (N-0 shutout where N is the winning score)
+export const isUnicornMatch = (match: Match, settings?: TournamentSettings): boolean => {
+  const winScore = getWinningScore(settings);
+  const t1 = match.team1;
+  const t2 = match.team2;
+  return (t1.score === winScore && t2.score === 0) || (t2.score === winScore && t1.score === 0);
+};
+
 // Update stats after a match
-export const updatePlayerStats = (players: PlayerView[], match: Match): PlayerView[] => {
+export const updatePlayerStats = (players: PlayerView[], match: Match, settings?: TournamentSettings): PlayerView[] => {
   if (match.status !== 'completed' || !match.winner) return players;
 
   const t1 = match.team1;
   const t2 = match.team2;
-  
-  // Check for Unicorn (10-0)
-  const isUnicorn = (t1.score === 10 && t2.score === 0) || (t2.score === 10 && t1.score === 0);
+
+  // Check for Unicorn (N-0 shutout)
+  const isUnicorn = isUnicornMatch(match, settings);
+  const unicornBonusPoints = getUnicornBonus(settings);
 
   return players.map(p => {
     let team: Team | null = null;
@@ -69,7 +92,7 @@ export const updatePlayerStats = (players: PlayerView[], match: Match): PlayerVi
 
     if (team && oppTeam) {
       const isAttacker = team.attackerId === p.id;
-      
+
       // Calculate Points
       let matchPoints = 0;
       let unicornEarned = 0;
@@ -77,7 +100,7 @@ export const updatePlayerStats = (players: PlayerView[], match: Match): PlayerVi
       if (isWinner) {
         matchPoints += POINTS_WIN;
         if (isUnicorn) {
-          matchPoints += POINTS_UNICORN_BONUS;
+          matchPoints += unicornBonusPoints;
           unicornEarned = 1;
         }
       }

@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
-import { Match, PlayerView } from '../types';
-import { WINNING_SCORE } from '../services/tournamentLogic';
+import { Match, PlayerView, TournamentSettings } from '../types';
+import { getWinningScore } from '../services/tournamentLogic';
 import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2 } from 'lucide-react';
 
 interface Props {
@@ -10,14 +10,16 @@ interface Props {
   onUpdateScore: (team: 'team1' | 'team2', delta: number) => void;
   onFinishMatch: () => void;
   onCancelMatch: () => void;
-  isPositionMode: boolean;
+  settings: TournamentSettings;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
 
-const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, isPositionMode, onUndo, onRedo, canUndo, canRedo }) => {
+const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, settings, onUndo, onRedo, canUndo, canRedo }) => {
+  const isPositionMode = settings.isPositionMode;
+  const winningScore = getWinningScore(settings);
 
   const getPlayer = (id: string) => players.find(p => p.id === id);
 
@@ -48,8 +50,8 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onUpdateScore, onUndo, onRedo]);
 
-  const isWinner1 = match.team1.score >= WINNING_SCORE;
-  const isWinner2 = match.team2.score >= WINNING_SCORE;
+  const isWinner1 = match.team1.score >= winningScore;
+  const isWinner2 = match.team2.score >= winningScore;
 
   // Render a single player avatar at a specific percentage position
   const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
