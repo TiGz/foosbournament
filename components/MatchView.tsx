@@ -130,7 +130,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         </button>
         
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 opacity-50">
-             <img src="/logo.jpeg" alt="Logo" className="h-8 grayscale" />
+             <img src={import.meta.env.BASE_URL + 'logo.jpeg'} alt="Logo" className="h-8 grayscale" />
              <span className="text-slate-600 font-black text-xs tracking-[0.2em] uppercase">Match In Progress</span>
         </div>
 

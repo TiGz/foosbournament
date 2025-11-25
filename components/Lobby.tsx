@@ -59,7 +59,7 @@ const Lobby: React.FC<Props> = ({
       <div className="p-4 md:p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.jpeg" alt="Logo" className="h-12 md:h-16 object-contain" />
+            <img src={import.meta.env.BASE_URL + 'logo.jpeg'} alt="Logo" className="h-12 md:h-16 object-contain" />
             <div>
               <h1 className="text-xl md:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-foos-brand to-red-400 uppercase italic">
                 Foosbournament

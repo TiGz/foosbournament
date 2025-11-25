@@ -236,7 +236,7 @@ const PlayerSetup: React.FC<Props> = ({
         </div>
 
         <div className="text-center">
-          <img src="/logo.jpeg" alt="Logo" className="h-24 md:h-32 object-contain mx-auto" />
+          <img src={import.meta.env.BASE_URL + 'logo.jpeg'} alt="Logo" className="h-24 md:h-32 object-contain mx-auto" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

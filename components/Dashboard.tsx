@@ -158,7 +158,7 @@ const Dashboard: React.FC<Props> = ({
             >
               <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
             </button>
-            <img src="/logo.jpeg" alt="Logo" className="h-8 md:h-12 object-contain" />
+            <img src={import.meta.env.BASE_URL + 'logo.jpeg'} alt="Logo" className="h-8 md:h-12 object-contain" />
             <div className="flex flex-col">
               <h1 className="text-sm md:text-lg font-black text-white truncate max-w-[120px] md:max-w-[200px]">{tournamentName}</h1>
               <div className="flex gap-2">
