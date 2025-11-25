@@ -1,6 +1,47 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+// Avatar customization options - randomly selected for each generation
+const ACCESSORIES = [
+  "a giant sombrero",
+  "pixelated 8-bit sunglasses",
+  "a magnificent curly handlebar mustache",
+  "a viking helmet with horns",
+  "a fancy golden monocle",
+  "a sparkling crown",
+  "a backwards baseball cap",
+  "oversized hoop earrings",
+  "a wizard hat with stars",
+  "a superhero mask",
+  "a pirate eyepatch and bandana",
+  "a top hat with a feather",
+  "neon LED glasses",
+  "a headband with sweatband",
+  "a pair of devil horns",
+  "angel wings halo combo",
+  "a chef's hat",
+  "a space helmet visor",
+  "a flower crown",
+  "a samurai headband",
+];
+
+const NICKNAME_PLACEMENTS = [
+  "on a thick gold chain necklace",
+  "written on a baseball cap",
+  "on the front of a sports jersey",
+  "as a glowing neon sign floating nearby",
+  "tattooed on the forearm",
+  "on a championship belt",
+  "embroidered on a headband",
+  "on a name badge/lanyard",
+  "written in graffiti style behind them",
+  "on a wristband",
+  "as a floating holographic text",
+  "on a medallion",
+];
+
+const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
 const getApiKey = (): string | null => {
   return localStorage.getItem('gemini_api_key') || process.env.API_KEY || null;
 };
@@ -28,13 +69,17 @@ export const generateAvatar = async (base64Image: string, nickname: string): Pro
   // Using Nano Banana Pro (Gemini 3 Pro Image) as requested for high quality editing
   const model = 'gemini-3-pro-image-preview'; 
 
+  // Randomly select options for this avatar
+  const accessory = pickRandom(ACCESSORIES);
+  const nicknamePlacement = pickRandom(NICKNAME_PLACEMENTS);
+
   const prompt = `
     Edit this photo of a person for a fun foosball tournament app.
-    
+
     Tasks:
     1. REMOVE the original background completely. Replace it with a clean, dramatic gradient background (Deep Blue to Neon Orange).
-    2. Add a FUNNY ACCESSORY to the person based on their vibe or nickname "${nickname}". Examples: A giant sombrero, pixelated sunglasses, a curly mustache, a viking helmet, or a monocle.
-    3. INTEGRATE the nickname "${nickname}" textually into the image. It MUST appear visible on the character, e.g., on a bling necklace, written on a hat, a jersey, a tattoo, or as floating neon text.
+    2. Add ${accessory} to the person as a fun accessory.
+    3. Display the nickname "${nickname}" ${nicknamePlacement}. Make sure it's clearly visible and readable.
     4. Make the character look slightly stylized (3D render or high-quality cartoon style), but keep the face recognizable.
     5. Ensure the lighting matches a "Cyberpunk Sports" aesthetic (Orange/Teal rim lights).
 
