@@ -19,9 +19,7 @@ const ACCESSORIES = [
   "a headband with sweatband",
   "a pair of devil horns",
   "angel wings halo combo",
-  "a chef's hat",
   "a space helmet visor",
-  "a flower crown",
   "a samurai headband",
 ];
 
@@ -35,7 +33,6 @@ const NICKNAME_PLACEMENTS = [
   "embroidered on a headband",
   "on a name badge/lanyard",
   "written in graffiti style behind them",
-  "on a wristband",
   "as a floating holographic text",
   "on a medallion",
 ];
