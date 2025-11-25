@@ -21,6 +21,8 @@ const ACCESSORIES = [
   "angel wings halo combo",
   "a space helmet visor",
   "a samurai headband",
+  "smoking a phat spliff",
+  "smoking a big cigar"
 ];
 
 const NICKNAME_PLACEMENTS = [
