@@ -1,19 +1,23 @@
 
 import React, { useEffect } from 'react';
-import { Match, Player } from '../types';
+import { Match, PlayerView } from '../types';
 import { WINNING_SCORE } from '../services/tournamentLogic';
-import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle } from 'lucide-react';
+import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2 } from 'lucide-react';
 
 interface Props {
   match: Match;
-  players: Player[];
+  players: PlayerView[];
   onUpdateScore: (team: 'team1' | 'team2', delta: number) => void;
   onFinishMatch: () => void;
   onCancelMatch: () => void;
   isPositionMode: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
-const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, isPositionMode }) => {
+const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, isPositionMode, onUndo, onRedo, canUndo, canRedo }) => {
 
   const getPlayer = (id: string) => players.find(p => p.id === id);
 
@@ -25,20 +29,30 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyA') onUpdateScore('team1', 1);
-      if (e.code === 'KeyZ') onUpdateScore('team1', -1);
-      if (e.code === 'KeyL') onUpdateScore('team2', 1);
-      if (e.code === 'Comma') onUpdateScore('team2', -1);
+      // Team 1: Left Shift or A
+      if (e.code === 'ShiftLeft' || e.code === 'KeyA') onUpdateScore('team1', 1);
+      // Team 2: Right Shift or L
+      if (e.code === 'ShiftRight' || e.code === 'KeyL') onUpdateScore('team2', 1);
+      // Undo: Cmd/Ctrl + Z
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        onUndo();
+      }
+      // Redo: Cmd/Ctrl + Shift + Z
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ' && e.shiftKey) {
+        e.preventDefault();
+        onRedo();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onUpdateScore]);
+  }, [onUpdateScore, onUndo, onRedo]);
 
   const isWinner1 = match.team1.score >= WINNING_SCORE;
   const isWinner2 = match.team2.score >= WINNING_SCORE;
 
   // Render a single player avatar at a specific percentage position
-  const renderAvatar = (player: Player | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
+  const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
     const isBlue = team === 'Blue';
     const borderColor = isBlue ? 'border-foos-blue' : 'border-foos-red';
     const glowColor = isBlue ? 'shadow-blue-500/50' : 'shadow-red-500/50';
@@ -51,13 +65,13 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         // Positional Mode: Horizontal alignment (Defense back, Attack forward)
         // Centered vertically (top 50%)
         if (isBlue) {
-            style = role === 'Defense' 
-                ? { left: '20%', top: '50%', transform: 'translate(-50%, -50%)' }
-                : { left: '42%', top: '50%', transform: 'translate(-50%, -50%)' };
+            style = role === 'Defense'
+                ? { left: '10%', top: '50%', transform: 'translate(-50%, -50%)' }
+                : { left: '35%', top: '50%', transform: 'translate(-50%, -50%)' };
         } else {
             style = role === 'Defense'
-                ? { right: '20%', top: '50%', transform: 'translate(50%, -50%)' }
-                : { right: '42%', top: '50%', transform: 'translate(50%, -50%)' };
+                ? { right: '10%', top: '50%', transform: 'translate(50%, -50%)' }
+                : { right: '35%', top: '50%', transform: 'translate(50%, -50%)' };
         }
     } else {
         // Standard Mode: Vertical alignment (Top / Bottom)
@@ -94,8 +108,13 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
             </div>
         </div>
         
-        <div className={`mt-3 px-4 py-1.5 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700 text-center shadow-lg min-w-[120px]`}>
+        <div className={`mt-3 px-4 py-2 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700 text-center shadow-lg min-w-[120px]`}>
           <div className="font-bold text-white text-lg truncate max-w-[140px]">{player?.nickname}</div>
+          <div className="text-xs text-slate-400 mt-1">
+            <span className="text-green-400">{player?.wins ?? 0}W</span>
+            <span className="mx-1">·</span>
+            <span className="text-red-400">{player?.losses ?? 0}L</span>
+          </div>
         </div>
       </div>
     );
@@ -111,11 +130,29 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         </button>
         
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 opacity-50">
-             <img src="logo.jpeg" alt="Logo" className="h-8 grayscale" />
+             <img src="/logo.jpeg" alt="Logo" className="h-8 grayscale" />
              <span className="text-slate-600 font-black text-xs tracking-[0.2em] uppercase">Match In Progress</span>
         </div>
 
-        <button 
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className={`p-2 rounded-lg transition ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-700 cursor-not-allowed'}`}
+            title="Undo (Cmd+Z)"
+          >
+            <Undo2 className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className={`p-2 rounded-lg transition ${canRedo ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-700 cursor-not-allowed'}`}
+            title="Redo (Cmd+Shift+Z)"
+          >
+            <Redo2 className="w-5 h-5" />
+          </button>
+
+          <button 
             onClick={onFinishMatch}
             disabled={!isWinner1 && !isWinner2}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-bold text-sm transition uppercase tracking-wide shadow-lg ${
@@ -126,6 +163,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         >
             <Save className="w-4 h-4" /> Save Result
         </button>
+        </div>
       </div>
 
       {/* Main Pitch Area */}
@@ -133,18 +171,23 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         
         {/* TEAM 1 SIDE PANEL (LEFT) */}
         <div className={`w-24 md:w-48 lg:w-64 bg-slate-900 border-r-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner1 ? 'bg-blue-900/20' : ''}`}>
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
              
              <div className="mb-8 text-center">
                  <h2 className="text-foos-blue font-black text-3xl tracking-widest mb-2 italic">BLUE</h2>
              </div>
 
              <div className="flex flex-col items-center gap-4">
-                 <button 
-                    onClick={() => onUpdateScore('team1', 1)}
+                 <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[DEBUG] Team 1 + clicked');
+                      onUpdateScore('team1', 1);
+                    }}
                     className="w-20 h-20 rounded-2xl bg-foos-blue hover:bg-blue-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-95 transition"
                  >
-                     <Plus className="w-10 h-10" />
+                     <Plus className="w-10 h-10 pointer-events-none" />
                  </button>
                  
                  <div className="text-9xl font-black text-white tabular-nums leading-none select-none py-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">
@@ -206,18 +249,23 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
 
         {/* TEAM 2 SIDE PANEL (RIGHT) */}
         <div className={`w-24 md:w-48 lg:w-64 bg-slate-900 border-l-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner2 ? 'bg-red-900/20' : ''}`}>
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
              <div className="mb-8 text-center">
                  <h2 className="text-foos-red font-black text-3xl tracking-widest mb-2 italic">RED</h2>
              </div>
 
              <div className="flex flex-col items-center gap-4">
-                 <button 
-                    onClick={() => onUpdateScore('team2', 1)}
+                 <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('[DEBUG] Team 2 + clicked');
+                      onUpdateScore('team2', 1);
+                    }}
                     className="w-20 h-20 rounded-2xl bg-foos-red hover:bg-red-400 text-white flex items-center justify-center shadow-lg shadow-red-500/30 active:scale-95 transition"
                  >
-                     <Plus className="w-10 h-10" />
+                     <Plus className="w-10 h-10 pointer-events-none" />
                  </button>
                  
                  <div className="text-9xl font-black text-white tabular-nums leading-none select-none py-4 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]">

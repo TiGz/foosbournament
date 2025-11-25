@@ -1,13 +1,29 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+const getApiKey = (): string | null => {
+  return localStorage.getItem('gemini_api_key') || process.env.API_KEY || null;
+};
+
+export const hasApiKey = (): boolean => {
+  return !!getApiKey();
+};
+
+export const setApiKey = (key: string): void => {
+  localStorage.setItem('gemini_api_key', key);
+};
+
+export const clearApiKey = (): void => {
+  localStorage.removeItem('gemini_api_key');
+};
+
 export const generateAvatar = async (base64Image: string, nickname: string): Promise<string> => {
-  // We throw an error if the key is missing so the UI can trigger the selection flow
-  if (!process.env.API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     throw new Error("API_KEY_MISSING");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   // Using Nano Banana Pro (Gemini 3 Pro Image) as requested for high quality editing
   const model = 'gemini-3-pro-image-preview'; 

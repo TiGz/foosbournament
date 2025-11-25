@@ -1,85 +1,175 @@
-import { TournamentData, Match } from '../types';
+import { GlobalPlayer, TournamentData, TournamentSummary, AppState } from '../types';
 
-const STORAGE_KEY = 'foosball_tournament_v1';
+// Storage keys
+const KEYS = {
+  PLAYERS: 'foosball_players',
+  TOURNAMENTS: 'foosball_tournaments',
+  APP_STATE: 'foosball_app_state',
+  TOURNAMENT_PREFIX: 'foosball_tournament_',
+};
 
-export const saveToStorage = (data: TournamentData) => {
+// ============================================
+// Global Players
+// ============================================
+
+export const loadGlobalPlayers = (): GlobalPlayer[] => {
   try {
-    const serialized = JSON.stringify(data);
-    localStorage.setItem(STORAGE_KEY, serialized);
+    const item = localStorage.getItem(KEYS.PLAYERS);
+    if (!item) return [];
+    return JSON.parse(item);
   } catch (e) {
-    console.error("Failed to save to local storage", e);
+    console.error("Failed to load players", e);
+    return [];
+  }
+};
+
+export const saveGlobalPlayers = (players: GlobalPlayer[]) => {
+  try {
+    localStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+  } catch (e) {
+    console.error("Failed to save players", e);
     alert("Warning: Storage limit reached. Images might be too large.");
   }
 };
 
-// Helper type for migration
-interface LegacyTeam {
-  player1Id?: string;
-  player2Id?: string;
-  attackerId?: string;
-  defenderId?: string;
-  score: number;
-}
+// ============================================
+// Tournament List (summaries for lobby)
+// ============================================
 
-interface LegacyMatch extends Omit<Match, 'team1' | 'team2'> {
-  team1: LegacyTeam;
-  team2: LegacyTeam;
-}
-
-export const loadFromStorage = (): TournamentData | null => {
+export const loadTournamentList = (): TournamentSummary[] => {
   try {
-    const item = localStorage.getItem(STORAGE_KEY);
-    if (!item) return null;
-
-    const data = JSON.parse(item);
-
-    // Migration: Ensure matches use attackerId/defenderId
-    if (data.matches) {
-      data.matches = data.matches.map((m: LegacyMatch) => ({
-        ...m,
-        team1: {
-          attackerId: m.team1.attackerId || m.team1.player1Id || '',
-          defenderId: m.team1.defenderId || m.team1.player2Id || '',
-          score: m.team1.score
-        },
-        team2: {
-          attackerId: m.team2.attackerId || m.team2.player1Id || '',
-          defenderId: m.team2.defenderId || m.team2.player2Id || '',
-          score: m.team2.score
-        }
-      }));
-    }
-
-    // Migration: Ensure players have new stats and fields
-    if (data.players) {
-      data.players = data.players.map((p: any) => ({
-        ...p,
-        attackPlayed: p.attackPlayed || 0,
-        defensePlayed: p.defensePlayed || 0,
-        isAvailable: p.isAvailable !== undefined ? p.isAvailable : true, // Default to true
-        points: p.points || 0,
-        unicorns: p.unicorns || 0
-      }));
-    }
-    
-    // Migration: Ensure default positional mode if undefined
-    if (data.isPositionMode === undefined) {
-        data.isPositionMode = true;
-    }
-
-    return data as TournamentData;
+    const item = localStorage.getItem(KEYS.TOURNAMENTS);
+    if (!item) return [];
+    return JSON.parse(item);
   } catch (e) {
-    console.error("Failed to load from storage", e);
+    console.error("Failed to load tournament list", e);
+    return [];
+  }
+};
+
+export const saveTournamentList = (list: TournamentSummary[]) => {
+  try {
+    localStorage.setItem(KEYS.TOURNAMENTS, JSON.stringify(list));
+  } catch (e) {
+    console.error("Failed to save tournament list", e);
+  }
+};
+
+// ============================================
+// Individual Tournament Data
+// ============================================
+
+export const loadTournament = (id: string): TournamentData | null => {
+  try {
+    const item = localStorage.getItem(KEYS.TOURNAMENT_PREFIX + id);
+    if (!item) return null;
+    return JSON.parse(item);
+  } catch (e) {
+    console.error("Failed to load tournament", e);
     return null;
   }
 };
 
-export const exportData = (data: TournamentData) => {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+export const saveTournament = (data: TournamentData) => {
+  try {
+    localStorage.setItem(KEYS.TOURNAMENT_PREFIX + data.id, JSON.stringify(data));
+
+    // Also update the tournament list summary
+    const list = loadTournamentList();
+    const existingIndex = list.findIndex(t => t.id === data.id);
+    const summary: TournamentSummary = {
+      id: data.id,
+      name: data.name,
+      playerCount: data.players.length,
+      lastUpdatedAt: data.lastUpdatedAt,
+    };
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = summary;
+    } else {
+      list.push(summary);
+    }
+    saveTournamentList(list);
+  } catch (e) {
+    console.error("Failed to save tournament", e);
+    alert("Warning: Storage limit reached. Images might be too large.");
+  }
+};
+
+export const deleteTournament = (id: string) => {
+  try {
+    localStorage.removeItem(KEYS.TOURNAMENT_PREFIX + id);
+
+    // Remove from tournament list
+    const list = loadTournamentList();
+    const filteredList = list.filter(t => t.id !== id);
+    saveTournamentList(filteredList);
+  } catch (e) {
+    console.error("Failed to delete tournament", e);
+  }
+};
+
+// ============================================
+// App State (lastActiveTournamentId)
+// ============================================
+
+export const loadAppState = (): AppState => {
+  try {
+    const item = localStorage.getItem(KEYS.APP_STATE);
+    if (!item) return { lastActiveTournamentId: null };
+    return JSON.parse(item);
+  } catch (e) {
+    console.error("Failed to load app state", e);
+    return { lastActiveTournamentId: null };
+  }
+};
+
+export const saveAppState = (state: AppState) => {
+  try {
+    localStorage.setItem(KEYS.APP_STATE, JSON.stringify(state));
+  } catch (e) {
+    console.error("Failed to save app state", e);
+  }
+};
+
+// ============================================
+// Export Data
+// ============================================
+
+export const exportTournamentData = (data: TournamentData, globalPlayers: GlobalPlayer[]) => {
+  const exportData = {
+    tournament: data,
+    players: globalPlayers.filter(p =>
+      data.players.some(tp => tp.globalPlayerId === p.id)
+    ),
+    exportedAt: new Date().toISOString(),
+  };
+
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
   const downloadAnchorNode = document.createElement('a');
   downloadAnchorNode.setAttribute("href", dataStr);
-  downloadAnchorNode.setAttribute("download", `foosball_data_${new Date().toISOString().slice(0,10)}.json`);
+  downloadAnchorNode.setAttribute("download", `foosball_${data.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.json`);
   document.body.appendChild(downloadAnchorNode);
   downloadAnchorNode.click();
   downloadAnchorNode.remove();
+};
+
+// ============================================
+// Utility: Generate ID
+// ============================================
+
+export const generateId = (): string => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
+// ============================================
+// Utility: Format date for tournament name
+// ============================================
+
+export const formatTournamentDate = (date: Date = new Date()): string => {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 };

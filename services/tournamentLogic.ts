@@ -1,4 +1,4 @@
-import { Player, Match, Team } from '../types';
+import { PlayerView, Match, Team } from '../types';
 
 export const WINNING_SCORE = 10;
 
@@ -9,8 +9,8 @@ export const POINTS_UNICORN_BONUS = 1; // Extra point for 10-0
 // Helper to create a UUID-like string
 export const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// Create a new empty player
-export const createPlayer = (nickname: string, photoUrl: string | null): Player => ({
+// Create a new empty player view
+export const createPlayerView = (nickname: string, photoUrl: string | null): PlayerView => ({
   id: generateId(),
   nickname,
   photoUrl,
@@ -27,11 +27,11 @@ export const createPlayer = (nickname: string, photoUrl: string | null): Player 
 });
 
 // Calculate Leaderboard
-export const getLeaderboard = (players: Player[]): Player[] => {
+export const getLeaderboard = (players: PlayerView[]): PlayerView[] => {
   return [...players].sort((a, b) => {
     // Primary: Total Points
     if (a.points !== b.points) return b.points - a.points;
-    
+
     // Tie-breaker 1: Win Count
     if (a.wins !== b.wins) return b.wins - a.wins;
 
@@ -43,7 +43,7 @@ export const getLeaderboard = (players: Player[]): Player[] => {
 };
 
 // Update stats after a match
-export const updatePlayerStats = (players: Player[], match: Match): Player[] => {
+export const updatePlayerStats = (players: PlayerView[], match: Match): PlayerView[] => {
   if (match.status !== 'completed' || !match.winner) return players;
 
   const t1 = match.team1;
@@ -100,7 +100,7 @@ export const updatePlayerStats = (players: Player[], match: Match): Player[] => 
 };
 
 // Generate the next match
-export const generateNextMatch = (players: Player[], matches: Match[]): Match | null => {
+export const generateNextMatch = (players: PlayerView[], matches: Match[]): Match | null => {
   // Filter for available players only
   const availablePlayers = players.filter(p => p.isAvailable);
 
@@ -150,7 +150,7 @@ export const generateNextMatch = (players: Player[], matches: Match[]): Match | 
   const bestOption = scoredCombinations[0];
 
   // 4. Assign Roles (Attack vs Defense) based on history
-  const assignRoles = (p1: Player, p2: Player): { attackerId: string, defenderId: string } => {
+  const assignRoles = (p1: PlayerView, p2: PlayerView): { attackerId: string, defenderId: string } => {
     // Calculate "Attack Bias" = AttackGames - DefenseGames
     const bias1 = (p1.attackPlayed || 0) - (p1.defensePlayed || 0);
     const bias2 = (p2.attackPlayed || 0) - (p2.defensePlayed || 0);
@@ -181,7 +181,7 @@ export const generateNextMatch = (players: Player[], matches: Match[]): Match | 
 };
 
 // Generate a queue of matches to equalise games played
-export const generateMatchQueue = (players: Player[], matches: Match[]): Match[] => {
+export const generateMatchQueue = (players: PlayerView[], matches: Match[]): Match[] => {
   const queue: Match[] = [];
   
   // Create deep copies to simulate progression without affecting current state
