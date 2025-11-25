@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GlobalPlayer, TournamentSummary } from '../types';
 import { Trophy, Plus, Users, Calendar, Trash2, Edit3, Check, Camera } from 'lucide-react';
 import AvatarEditor from './AvatarEditor';
+import InstallPrompt from './InstallPrompt';
 
 interface Props {
   tournaments: TournamentSummary[];
@@ -75,6 +76,8 @@ const Lobby: React.FC<Props> = ({
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8">
+          {/* Install Prompt */}
+          <InstallPrompt />
 
           {/* Tournaments Section */}
           <section>
