@@ -1,0 +1,7 @@
+{
+  "name": "Foosbournament",
+  "description": "A swanky, full-screen tournament manager for foosball nights. Features AI-powered avatar generation, match tracking, and persistent leaderboards.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

@@ -1,0 +1,62 @@
+
+import { GoogleGenAI } from "@google/genai";
+
+export const generateAvatar = async (base64Image: string, nickname: string): Promise<string> => {
+  // We throw an error if the key is missing so the UI can trigger the selection flow
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Using Nano Banana Pro (Gemini 3 Pro Image) as requested for high quality editing
+  const model = 'gemini-3-pro-image-preview'; 
+
+  const prompt = `
+    Edit this photo of a person for a fun foosball tournament app.
+    
+    Tasks:
+    1. REMOVE the original background completely. Replace it with a clean, dramatic gradient background (Deep Blue to Neon Orange).
+    2. Add a FUNNY ACCESSORY to the person based on their vibe or nickname "${nickname}". Examples: A giant sombrero, pixelated sunglasses, a curly mustache, a viking helmet, or a monocle.
+    3. INTEGRATE the nickname "${nickname}" textually into the image. It MUST appear visible on the character, e.g., on a bling necklace, written on a hat, a jersey, a tattoo, or as floating neon text.
+    4. Make the character look slightly stylized (3D render or high-quality cartoon style), but keep the face recognizable.
+    5. Ensure the lighting matches a "Cyberpunk Sports" aesthetic (Orange/Teal rim lights).
+
+    Aspect Ratio: 1:1
+    Output: High quality image.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: model,
+    contents: {
+      parts: [
+        {
+          text: prompt,
+        },
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Image,
+          },
+        },
+      ],
+    },
+    config: {
+      imageConfig: {
+          aspectRatio: "1:1",
+          imageSize: "1K"
+      }
+    }
+  });
+
+  // Check for image in response parts
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData && part.inlineData.data) {
+        return `data:image/jpeg;base64,${part.inlineData.data}`;
+      }
+    }
+  }
+
+  throw new Error("No image generated in response");
+};
