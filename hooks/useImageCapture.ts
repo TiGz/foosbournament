@@ -146,6 +146,11 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
   const generateAiAvatar = useCallback(async (nickname: string) => {
     if (!imagePreview) return;
 
+    if (!navigator.onLine) {
+      alert("AI Makeover requires an internet connection. Please try again when online.");
+      return;
+    }
+
     if (!hasApiKey()) {
       setShowApiKeyModal(true);
       return;

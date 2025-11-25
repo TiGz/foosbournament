@@ -12,6 +12,8 @@ import Lobby from './components/Lobby';
 import PlayerSetup from './components/PlayerSetup';
 import MatchView from './components/MatchView';
 import Dashboard from './components/Dashboard';
+import OfflineBanner from './components/OfflineBanner';
+import UpdatePrompt from './components/UpdatePrompt';
 import { generateNextMatch, generateMatchQueue, updatePlayerStats, WINNING_SCORE } from './services/tournamentLogic';
 import {
   loadGlobalPlayers,
@@ -502,6 +504,9 @@ const App: React.FC = () => {
 
   return (
     <div className="font-sans text-slate-100 bg-foos-dark min-h-screen">
+      <OfflineBanner />
+      <UpdatePrompt />
+
       {view === AppView.LOBBY && (
         <Lobby
           tournaments={tournaments}

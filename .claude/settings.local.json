@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(identify:*)",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npx sharp:*)",
+      "Bash(node -e:*)",
+      "Bash(timeout 10 npm run dev:*)"
     ],
     "deny": [],
     "ask": []
