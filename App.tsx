@@ -9,6 +9,9 @@ import {
   AppView,
   TournamentSettings,
   DEFAULT_TOURNAMENT_SETTINGS,
+  FoosballExport,
+  NicknameConflict,
+  Toast,
 } from './types';
 import Lobby from './components/Lobby';
 import PlayerSetup from './components/PlayerSetup';
@@ -16,7 +19,9 @@ import MatchView from './components/MatchView';
 import Dashboard from './components/Dashboard';
 import OfflineBanner from './components/OfflineBanner';
 import UpdatePrompt from './components/UpdatePrompt';
-import { generateNextMatch, generateMatchQueue, updatePlayerStats, getWinningScore, getUnicornBonus } from './services/tournamentLogic';
+import NicknameConflictModal from './components/NicknameConflictModal';
+import ToastContainer from './components/ToastContainer';
+import { generateNextMatch, generateMatchQueue, updatePlayerStats, getWinningScore, getUnicornBonus, getLeaderboard } from './services/tournamentLogic';
 import {
   loadGlobalPlayers,
   saveGlobalPlayers,
@@ -26,10 +31,18 @@ import {
   deleteTournament,
   loadAppState,
   saveAppState,
-  exportTournamentData,
+  exportAllData,
+  validateImport,
+  findNicknameConflicts,
+  importOverwrite,
+  importMerge,
   generateId,
   formatTournamentDate,
 } from './services/storageService';
+import { jsonFilePlugin } from './services/jsonFilePlugin';
+import { resizeImage } from './services/imageService';
+import { useToast } from './hooks/useToast';
+import { avatarQueueService } from './services/avatarQueueService';
 
 // Helper: Merge GlobalPlayer + TournamentPlayer into PlayerView for components
 const createPlayerViews = (globalPlayers: GlobalPlayer[], tournamentPlayers: TournamentPlayer[]): PlayerView[] => {
@@ -88,6 +101,16 @@ const App: React.FC = () => {
   historyRef.current = scoreHistory;
   indexRef.current = historyIndex;
 
+  // Track previous leaderboard state for animations when returning from match
+  const [previousLeaderboard, setPreviousLeaderboard] = useState<{id: string, points: number, rank: number}[] | null>(null);
+
+  // Import/export state
+  const [nicknameConflicts, setNicknameConflicts] = useState<NicknameConflict[]>([]);
+  const [pendingImportData, setPendingImportData] = useState<FoosballExport | null>(null);
+
+  // Toast notifications
+  const { toasts, addToast, removeToast } = useToast();
+
   // Load initial data
   useEffect(() => {
     const players = loadGlobalPlayers();
@@ -132,6 +155,28 @@ const App: React.FC = () => {
       saveGlobalPlayers(globalPlayers);
     }
   }, [globalPlayers]);
+
+  // Subscribe to avatar generation completions
+  useEffect(() => {
+    const unsubscribe = avatarQueueService.subscribe((job) => {
+      if (job.status === 'completed' && job.result) {
+        // Find the player and update their photo
+        setGlobalPlayers((prev) => {
+          const player = prev.find((p) => p.id === job.playerId);
+          if (!player) return prev; // Player was deleted
+          return prev.map((p) =>
+            p.id === job.playerId ? { ...p, photoUrl: job.result! } : p
+          );
+        });
+        addToast({ type: 'success', message: `Avatar ready for ${job.nickname}!` });
+        avatarQueueService.acknowledgeJob(job.id);
+      } else if (job.status === 'failed') {
+        addToast({ type: 'error', message: `Avatar failed for ${job.nickname}: ${job.error || 'Unknown error'}` });
+        avatarQueueService.acknowledgeJob(job.id);
+      }
+    });
+    return unsubscribe;
+  }, [addToast]);
 
   // ============================================
   // Lobby Handlers
@@ -180,8 +225,18 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateGlobalPlayer = (player: GlobalPlayer) => {
-    setGlobalPlayers(prev => prev.map(p => p.id === player.id ? player : p));
+  const handleUpdateGlobalPlayer = async (player: GlobalPlayer) => {
+    // Check if photoUrl has changed and needs resizing
+    const existingPlayer = globalPlayers.find(p => p.id === player.id);
+    let updatedPlayer = player;
+
+    if (player.photoUrl && player.photoUrl !== existingPlayer?.photoUrl) {
+      // Resize image for storage (keep high quality during editing, compress on save)
+      const resizedPhotoUrl = await resizeImage(player.photoUrl);
+      updatedPlayer = { ...player, photoUrl: resizedPhotoUrl };
+    }
+
+    setGlobalPlayers(prev => prev.map(p => p.id === player.id ? updatedPlayer : p));
   };
 
   const handleBackToLobby = () => {
@@ -207,12 +262,15 @@ const App: React.FC = () => {
     } : null);
   };
 
-  const handleCreateAndAddPlayer = (nickname: string, photoUrl: string | null) => {
+  const handleCreateAndAddPlayer = async (nickname: string, photoUrl: string | null): Promise<string> => {
+    // Resize image for storage (keep high quality during editing, compress on save)
+    const resizedPhotoUrl = photoUrl ? await resizeImage(photoUrl) : null;
+
     // Create global player
     const newGlobalPlayer: GlobalPlayer = {
       id: generateId(),
       nickname,
-      photoUrl,
+      photoUrl: resizedPhotoUrl,
       createdAt: Date.now(),
       lifetimeWins: 0,
       lifetimeLosses: 0,
@@ -227,6 +285,8 @@ const App: React.FC = () => {
 
     // Add to current tournament
     handleAddPlayerToTournament(newGlobalPlayer.id);
+
+    return newGlobalPlayer.id;
   };
 
   const handleRemovePlayerFromTournament = (globalPlayerId: string) => {
@@ -258,7 +318,7 @@ const App: React.FC = () => {
         matches: [...prev.matches, ...newMatches],
       } : null);
     } else {
-      alert("Could not generate a balanced round. Try enabling more players.");
+      addToast({ type: 'error', message: 'Could not generate a balanced round. Try enabling more players.' });
     }
   };
 
@@ -313,7 +373,7 @@ const App: React.FC = () => {
 
       setView(AppView.ACTIVE_MATCH);
     } else {
-      alert("Not enough available players to generate a match. Ensure at least 4 players are enabled.");
+      addToast({ type: 'error', message: 'Not enough available players to generate a match. Ensure at least 4 players are enabled.' });
     }
   };
 
@@ -341,10 +401,70 @@ const App: React.FC = () => {
     });
   };
 
-  const handleExport = () => {
-    if (currentTournament) {
-      exportTournamentData(currentTournament, globalPlayers);
+  // ============================================
+  // Import/Export Handlers
+  // ============================================
+
+  const handleExportAllData = async () => {
+    const data = exportAllData();
+    await jsonFilePlugin.export(data);
+  };
+
+  const handleImportData = async (mode: 'overwrite' | 'merge') => {
+    const data = await jsonFilePlugin.import();
+    if (!data) return; // User cancelled or error
+
+    const validated = validateImport(data);
+    if (!validated) {
+      addToast({ type: 'error', message: 'Invalid backup file format. Please select a valid Foosbournament backup file.' });
+      return;
     }
+
+    if (mode === 'overwrite') {
+      importOverwrite(validated);
+      // Reload all data
+      setGlobalPlayers(loadGlobalPlayers());
+      setTournaments(loadTournamentList());
+      setCurrentTournament(null);
+      saveAppState({ lastActiveTournamentId: null });
+      addToast({ type: 'success', message: 'Data imported successfully!' });
+    } else {
+      // Check for nickname conflicts
+      const conflicts = findNicknameConflicts(validated);
+      if (conflicts.length > 0) {
+        // Show conflict resolution modal
+        setNicknameConflicts(conflicts);
+        setPendingImportData(validated);
+      } else {
+        // No conflicts, proceed with merge
+        importMerge(validated, new Map());
+        // Reload all data
+        setGlobalPlayers(loadGlobalPlayers());
+        setTournaments(loadTournamentList());
+        addToast({ type: 'success', message: 'Data merged successfully!' });
+      }
+    }
+  };
+
+  const handleResolveConflicts = (resolutions: Map<string, 'merge' | string>) => {
+    if (!pendingImportData) return;
+
+    importMerge(pendingImportData, resolutions);
+
+    // Reload all data
+    setGlobalPlayers(loadGlobalPlayers());
+    setTournaments(loadTournamentList());
+
+    // Clear conflict state
+    setNicknameConflicts([]);
+    setPendingImportData(null);
+
+    addToast({ type: 'success', message: 'Data merged successfully!' });
+  };
+
+  const handleCancelConflictResolution = () => {
+    setNicknameConflicts([]);
+    setPendingImportData(null);
   };
 
   const handleEditRoster = () => {
@@ -424,8 +544,12 @@ const App: React.FC = () => {
 
     const completedMatch: Match = { ...currentMatch, status: 'completed', winner, timestamp: Date.now() };
 
-    // Update tournament players
+    // Capture the previous leaderboard state BEFORE updating stats
     const playerViews = createPlayerViews(globalPlayers, currentTournament.players);
+    const prevLeaderboard = getLeaderboard(playerViews);
+    setPreviousLeaderboard(prevLeaderboard.map((p, index) => ({ id: p.id, points: p.points, rank: index })));
+
+    // Update tournament players
     const updatedPlayerViews = updatePlayerStats(playerViews, completedMatch, settings);
 
     // Map back to TournamentPlayer
@@ -525,6 +649,9 @@ const App: React.FC = () => {
           onCreateTournament={handleCreateTournament}
           onDeleteTournament={handleDeleteTournament}
           onUpdatePlayer={handleUpdateGlobalPlayer}
+          onExportData={handleExportAllData}
+          onImportData={handleImportData}
+          addToast={addToast}
         />
       )}
 
@@ -538,6 +665,7 @@ const App: React.FC = () => {
           onRemovePlayer={handleRemovePlayerFromTournament}
           onFinishSetup={handleFinishSetup}
           onBackToLobby={handleBackToLobby}
+          addToast={addToast}
         />
       )}
 
@@ -550,7 +678,6 @@ const App: React.FC = () => {
           onStartMatch={handleStartMatch}
           onGenerateRound={handleGenerateRound}
           onClearQueue={handleClearQueue}
-          onExportData={handleExport}
           canStartMatch={playerViews.filter(p => p.isAvailable).length >= 4}
           settings={currentTournament.settings ?? DEFAULT_TOURNAMENT_SETTINGS}
           onUpdateSettings={handleUpdateSettings}
@@ -558,6 +685,9 @@ const App: React.FC = () => {
           onBackToLobby={handleBackToLobby}
           onEditRoster={handleEditRoster}
           onUpdatePlayer={handleUpdateGlobalPlayer}
+          previousLeaderboard={previousLeaderboard}
+          onAnimationComplete={() => setPreviousLeaderboard(null)}
+          addToast={addToast}
         />
       )}
 
@@ -576,6 +706,17 @@ const App: React.FC = () => {
           canRedo={historyIndex < scoreHistory.length - 1}
         />
       )}
+
+      {/* Nickname Conflict Resolution Modal */}
+      <NicknameConflictModal
+        isOpen={nicknameConflicts.length > 0}
+        conflicts={nicknameConflicts}
+        onResolve={handleResolveConflicts}
+        onCancel={handleCancelConflictResolution}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

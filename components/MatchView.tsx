@@ -101,12 +101,18 @@ const getMatchStartAnnouncement = (
   t2Defender: string,
   isPositionMode: boolean
 ): string => {
+  // Normalize names to lowercase for better TTS pronunciation
+  const att1 = t1Attacker.toLowerCase();
+  const def1 = t1Defender.toLowerCase();
+  const att2 = t2Attacker.toLowerCase();
+  const def2 = t2Defender.toLowerCase();
+
   const blue = isPositionMode
-    ? `${t1Attacker} on attack and ${t1Defender} on defense`
-    : `${t1Attacker} and ${t1Defender}`;
+    ? `${att1} on attack and ${def1} on defense`
+    : `${att1} and ${def1}`;
   const red = isPositionMode
-    ? `${t2Attacker} on attack and ${t2Defender} on defense`
-    : `${t2Attacker} and ${t2Defender}`;
+    ? `${att2} on attack and ${def2} on defense`
+    : `${att2} and ${def2}`;
 
   const templates = [
     `Ladies and gentlemen, it's foosball time! Blue team: ${blue}. Red team: ${red}. Let the spinning begin!`,
@@ -132,7 +138,8 @@ const getMatchEndAnnouncement = (
   loserScore: number,
   isUnicorn: boolean
 ): string => {
-  const winners = `${winnerPlayer1} and ${winnerPlayer2}`;
+  // Normalize names to lowercase for better TTS pronunciation
+  const winners = `${winnerPlayer1.toLowerCase()} and ${winnerPlayer2.toLowerCase()}`;
   const score = `${winnerScore} to ${loserScore}`;
 
   if (isUnicorn) {
@@ -330,28 +337,28 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
       <div className="absolute z-20 flex flex-col items-center transition-all duration-700 ease-in-out" style={style}>
         <div className="relative group">
             {isPositionMode && (
-                <div className={`absolute -top-4 left-1/2 -translate-x-1/2 z-30 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm border border-white/20 ${labelColor} text-white`}>
-                    {role === 'Attack' ? <Sword className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
-                    {role === 'Attack' ? 'ATT' : 'DEF'}
+                <div className={`absolute -top-3 sm:-top-4 left-1/2 -translate-x-1/2 z-30 px-1.5 sm:px-2 py-0.5 rounded-full text-2xs sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-0.5 sm:gap-1 shadow-sm border border-white/20 ${labelColor} text-white`}>
+                    {role === 'Attack' ? <Sword className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> : <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
+                    <span className="hidden xs:inline">{role === 'Attack' ? 'ATT' : 'DEF'}</span>
                 </div>
             )}
-            
-            <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full border-4 ${borderColor} bg-slate-900 overflow-hidden shadow-xl ${glowColor} hover:scale-105 transition-transform duration-300 ring-2 ring-black/50`}>
+
+            <div className={`w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 lg:w-32 lg:h-32 rounded-full border-2 sm:border-4 ${borderColor} bg-slate-900 overflow-hidden shadow-xl ${glowColor} hover:scale-105 transition-transform duration-300 ring-1 sm:ring-2 ring-black/50`}>
                 {player?.photoUrl ? (
                     <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-slate-500">
+                    <div className="w-full h-full flex items-center justify-center text-fluid-lg sm:text-fluid-xl md:text-2xl font-bold text-slate-500">
                         {player?.nickname.charAt(0)}
                     </div>
                 )}
             </div>
         </div>
-        
-        <div className={`mt-3 px-4 py-2 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700 text-center shadow-lg min-w-[120px]`}>
-          <div className="font-bold text-white text-lg truncate max-w-[140px]">{player?.nickname}</div>
-          <div className="text-xs text-slate-400 mt-1">
+
+        <div className="mt-1.5 sm:mt-2 md:mt-3 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-lg md:rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700 text-center shadow-lg min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">
+          <div className="font-bold text-white text-fluid-sm sm:text-fluid-base md:text-lg truncate max-w-[70px] sm:max-w-[100px] md:max-w-[140px]">{player?.nickname}</div>
+          <div className="text-2xs sm:text-fluid-xs text-slate-400 mt-0.5 sm:mt-1 hidden sm:block">
             <span className="text-green-400">{player?.wins ?? 0}W</span>
-            <span className="mx-1">·</span>
+            <span className="mx-0.5 sm:mx-1">·</span>
             <span className="text-red-400">{player?.losses ?? 0}L</span>
           </div>
         </div>
@@ -359,59 +366,76 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     );
   };
 
+  // Detect if user has a physical keyboard (not touch device)
+  const [hasKeyboard, setHasKeyboard] = useState(false);
+
+  useEffect(() => {
+    // Check for touch capability as a proxy for mobile/tablet
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    // Also check screen width - small screens likely don't have keyboards
+    const isLargeScreen = window.innerWidth >= 768;
+    setHasKeyboard(!isTouchDevice || isLargeScreen);
+
+    const handleResize = () => {
+      setHasKeyboard(window.innerWidth >= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div className="h-screen flex flex-col bg-slate-900 overflow-hidden font-sans">
-      
+
       {/* Top Bar */}
-      <div className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 z-30 shadow-2xl relative">
-        <button onClick={onCancelMatch} className="text-slate-500 hover:text-white flex items-center gap-2 transition uppercase text-xs font-bold tracking-widest">
-            <XCircle className="w-5 h-5" /> <span className="hidden md:inline">Cancel</span>
+      <div className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-2 sm:px-4 md:px-6 z-30 shadow-2xl relative">
+        <button onClick={onCancelMatch} className="text-slate-500 hover:text-white flex items-center gap-1.5 sm:gap-2 transition uppercase text-2xs sm:text-fluid-xs font-bold tracking-widest p-2 rounded-button hover:bg-slate-800 active:scale-95">
+            <XCircle className="w-4 h-4 sm:w-5 sm:h-5" /> <span className="hidden sm:inline">Cancel</span>
         </button>
 
         {/* Center: Target Score Display */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
-             <div className="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-slate-700">
+             <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/80 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-card border border-slate-700">
                <Star className="w-4 h-4 text-foos-gold" />
-               <span className="text-white font-black text-lg tabular-nums">{winningScore}</span>
-               <span className="text-slate-500 text-xs font-bold uppercase tracking-wide hidden md:inline">to win</span>
+               <span className="text-white font-black text-fluid-base sm:text-fluid-lg tabular-nums font-mono">{winningScore}</span>
+               <span className="text-slate-500 text-2xs sm:text-fluid-xs font-bold uppercase tracking-wide hidden md:inline">to win</span>
              </div>
         </div>
 
         <div className="flex items-center gap-1 md:gap-2">
           <button
             onClick={() => setShowOptionsModal(true)}
-            className="p-2 rounded-lg transition text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-2 rounded-button transition text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95"
             title="Options"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            className={`p-2 rounded-lg transition ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-700 cursor-not-allowed'}`}
+            className={`p-2 rounded-button transition ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95' : 'text-slate-700 cursor-not-allowed'}`}
             title="Undo (Cmd+Z)"
           >
-            <Undo2 className="w-5 h-5" />
+            <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={onRedo}
             disabled={!canRedo}
-            className={`p-2 rounded-lg transition ${canRedo ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-700 cursor-not-allowed'}`}
+            className={`p-2 rounded-button transition ${canRedo ? 'text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95' : 'text-slate-700 cursor-not-allowed'}`}
             title="Redo (Cmd+Shift+Z)"
           >
-            <Redo2 className="w-5 h-5" />
+            <Redo2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           <button
             onClick={onFinishMatch}
             disabled={!isWinner1 && !isWinner2}
-            className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded-lg font-bold text-sm transition uppercase tracking-wide shadow-lg ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-button font-bold text-2xs sm:text-fluid-xs transition uppercase tracking-wide shadow-lg active:scale-95 ${
                 isWinner1 || isWinner2
-                ? 'bg-foos-brand text-white hover:bg-orange-600 shadow-orange-500/20'
+                ? 'bg-foos-brand text-white hover:bg-orange-600 shadow-button-brand'
                 : 'bg-slate-800 text-slate-600 cursor-not-allowed'
             }`}
         >
-            <Save className="w-4 h-4" /> <span className="hidden md:inline">Save Result</span>
+            <Save className="w-4 h-4" /> <span className="hidden sm:inline">Save Result</span>
         </button>
         </div>
       </div>
@@ -420,65 +444,70 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
       <div className="flex-1 relative flex overflow-hidden">
         
         {/* TEAM 1 SIDE PANEL (LEFT) */}
-        <div className={`w-24 md:w-48 lg:w-64 bg-slate-900 border-r-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner1 ? 'bg-blue-900/20' : ''}`}>
+        <div className={`w-20 sm:w-28 md:w-44 lg:w-56 xl:w-64 bg-slate-900 border-r-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner1 ? 'bg-blue-900/20' : ''}`}>
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
-             
-             <div className="mb-8 text-center">
-                 <h2 className="text-foos-blue font-black text-3xl tracking-widest mb-2 italic">BLUE</h2>
+
+             <div className="mb-4 sm:mb-6 md:mb-8 text-center">
+                 <h2 className="text-foos-blue font-black text-fluid-lg sm:text-fluid-xl md:text-fluid-2xl lg:text-3xl tracking-widest mb-1 sm:mb-2 italic">BLUE</h2>
              </div>
 
-             <div className="flex flex-col items-center gap-4">
-                 <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('[DEBUG] Team 1 + clicked');
-                      onUpdateScore('team1', 1);
-                    }}
-                    className="w-20 h-20 rounded-2xl bg-foos-blue hover:bg-blue-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-95 transition"
-                 >
-                     <Plus className="w-10 h-10 pointer-events-none" />
-                 </button>
-                 
-                 <div className="text-9xl font-black text-white tabular-nums leading-none select-none py-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">
+             <div className="flex flex-col items-center gap-2 sm:gap-3 md:gap-4">
+                 <div className="relative flex flex-col items-center">
+                   <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[DEBUG] Team 1 + clicked');
+                        onUpdateScore('team1', 1);
+                      }}
+                      className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-foos-blue hover:bg-blue-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-95 transition"
+                   >
+                       <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
+                   </button>
+                   {hasKeyboard && (
+                     <span className="mt-1.5 text-2xs text-slate-500 font-mono tracking-tight hidden md:block">Left Shift</span>
+                   )}
+                 </div>
+
+                 <div className="text-fluid-score font-black text-white tabular-nums leading-none select-none py-2 sm:py-3 md:py-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)] font-mono">
                      {match.team1.score}
                  </div>
 
-                 <button 
+                 <button
                     onClick={() => onUpdateScore('team1', -1)}
-                    className="w-14 h-14 rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition"
+                    className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition active:scale-95"
                  >
-                     <Minus className="w-6 h-6" />
+                     <Minus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                  </button>
              </div>
-             
-             {isWinner1 && <Trophy className="w-24 h-24 text-foos-gold mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
+
+             {isWinner1 && <Trophy className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-foos-gold mt-6 sm:mt-8 md:mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
         </div>
 
         {/* THE PITCH */}
-        <div className="flex-1 relative bg-[#0f5132] overflow-hidden shadow-[inset_0_0_150px_rgba(0,0,0,0.8)]">
+        <div className="flex-1 relative bg-[#0f5132] overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)] sm:shadow-[inset_0_0_120px_rgba(0,0,0,0.8)] md:shadow-[inset_0_0_150px_rgba(0,0,0,0.8)]">
              {/* Pitch Texture */}
-             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]"></div>
-             
+             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px] sm:[background-size:20px_20px] md:[background-size:24px_24px]"></div>
+
              {/* Halfway Line */}
-             <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-white/20 transform -translate-x-1/2"></div>
-             
+             <div className="absolute left-1/2 top-0 bottom-0 w-0.5 sm:w-1 bg-white/20 transform -translate-x-1/2"></div>
+
              {/* Center Circle */}
-             <div className="absolute left-1/2 top-1/2 w-48 h-48 md:w-80 md:h-80 border-4 border-white/20 rounded-full transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-                 <div className="w-3 h-3 bg-white/40 rounded-full"></div>
+             <div className="absolute left-1/2 top-1/2 w-32 h-32 sm:w-48 sm:h-48 md:w-64 md:h-64 lg:w-80 lg:h-80 border-2 sm:border-4 border-white/20 rounded-full transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+                 <div className="w-2 h-2 sm:w-3 sm:h-3 bg-white/40 rounded-full"></div>
              </div>
 
              {/* Goals - 3-sided Box Style */}
              {/* Left Goal (Blue Team) */}
-             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-16 md:w-24 h-48 md:h-64 border-y-4 border-r-4 border-white/20 bg-white/5 rounded-r-sm"></div>
-             
-             {/* Right Goal (Red Team) */}
-             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-16 md:w-24 h-48 md:h-64 border-y-4 border-l-4 border-white/20 bg-white/5 rounded-l-sm"></div>
+             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-8 sm:w-12 md:w-16 lg:w-24 h-32 sm:h-40 md:h-48 lg:h-64 border-y-2 sm:border-y-4 border-r-2 sm:border-r-4 border-white/20 bg-white/5 rounded-r-sm"></div>
 
-             {/* Rods (Background Decoration only) */}
-             <div className="absolute inset-0 flex justify-between px-[10%] pointer-events-none opacity-30">
+             {/* Right Goal (Red Team) */}
+             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-8 sm:w-12 md:w-16 lg:w-24 h-32 sm:h-40 md:h-48 lg:h-64 border-y-2 sm:border-y-4 border-l-2 sm:border-l-4 border-white/20 bg-white/5 rounded-l-sm"></div>
+
+             {/* Rods (Background Decoration only) - hidden on very small screens */}
+             <div className="absolute inset-0 hidden sm:flex justify-between px-[10%] pointer-events-none opacity-30">
                 {[...Array(8)].map((_, i) => (
-                    <div key={i} className="w-1 h-full bg-gradient-to-b from-transparent via-slate-400 to-transparent"></div>
+                    <div key={i} className="w-0.5 sm:w-1 h-full bg-gradient-to-b from-transparent via-slate-400 to-transparent"></div>
                 ))}
              </div>
 
@@ -486,51 +515,56 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
              {/* Team 1 (Blue) */}
              {renderAvatar(t1Attacker, 'Attack', 'Blue')}
              {renderAvatar(t1Defender, 'Defense', 'Blue')}
-             
+
              {/* Team 2 (Red) */}
              {renderAvatar(t2Attacker, 'Attack', 'Red')}
              {renderAvatar(t2Defender, 'Defense', 'Red')}
 
              {/* VS Label in Center */}
              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-10 mix-blend-overlay">
-                 <span className="text-[12rem] font-black text-white select-none tracking-tighter">VS</span>
+                 <span className="text-6xl sm:text-8xl md:text-[10rem] lg:text-[12rem] font-black text-white select-none tracking-tighter">VS</span>
              </div>
         </div>
 
         {/* TEAM 2 SIDE PANEL (RIGHT) */}
-        <div className={`w-24 md:w-48 lg:w-64 bg-slate-900 border-l-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner2 ? 'bg-red-900/20' : ''}`}>
+        <div className={`w-20 sm:w-28 md:w-44 lg:w-56 xl:w-64 bg-slate-900 border-l-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner2 ? 'bg-red-900/20' : ''}`}>
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
-             <div className="mb-8 text-center">
-                 <h2 className="text-foos-red font-black text-3xl tracking-widest mb-2 italic">RED</h2>
+             <div className="mb-4 sm:mb-6 md:mb-8 text-center">
+                 <h2 className="text-foos-red font-black text-fluid-lg sm:text-fluid-xl md:text-fluid-2xl lg:text-3xl tracking-widest mb-1 sm:mb-2 italic">RED</h2>
              </div>
 
-             <div className="flex flex-col items-center gap-4">
-                 <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('[DEBUG] Team 2 + clicked');
-                      onUpdateScore('team2', 1);
-                    }}
-                    className="w-20 h-20 rounded-2xl bg-foos-red hover:bg-red-400 text-white flex items-center justify-center shadow-lg shadow-red-500/30 active:scale-95 transition"
-                 >
-                     <Plus className="w-10 h-10 pointer-events-none" />
-                 </button>
-                 
-                 <div className="text-9xl font-black text-white tabular-nums leading-none select-none py-4 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]">
+             <div className="flex flex-col items-center gap-2 sm:gap-3 md:gap-4">
+                 <div className="relative flex flex-col items-center">
+                   <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[DEBUG] Team 2 + clicked');
+                        onUpdateScore('team2', 1);
+                      }}
+                      className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-foos-red hover:bg-red-400 text-white flex items-center justify-center shadow-lg shadow-red-500/30 active:scale-95 transition"
+                   >
+                       <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
+                   </button>
+                   {hasKeyboard && (
+                     <span className="mt-1.5 text-2xs text-slate-500 font-mono tracking-tight hidden md:block">Right Shift</span>
+                   )}
+                 </div>
+
+                 <div className="text-fluid-score font-black text-white tabular-nums leading-none select-none py-2 sm:py-3 md:py-4 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)] font-mono">
                      {match.team2.score}
                  </div>
 
-                 <button 
+                 <button
                     onClick={() => onUpdateScore('team2', -1)}
-                    className="w-14 h-14 rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition"
+                    className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition active:scale-95"
                  >
-                     <Minus className="w-6 h-6" />
+                     <Minus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                  </button>
              </div>
-             
-             {isWinner2 && <Trophy className="w-24 h-24 text-foos-gold mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
+
+             {isWinner2 && <Trophy className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-foos-gold mt-6 sm:mt-8 md:mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
         </div>
 
       </div>
@@ -595,18 +629,18 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
           </div>
 
           {/* Victory text */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className={`text-center transform animate-[victoryPop_0.5s_ease-out_forwards]`}>
+          <div className="absolute inset-0 flex items-center justify-center px-4">
+            <div className="text-center transform animate-[victoryPop_0.5s_ease-out_forwards]">
               {isUnicorn ? (
                 <>
                   {/* Unicorn emoji with rainbow glow */}
-                  <div className="text-[8rem] md:text-[12rem] animate-bounce drop-shadow-[0_0_40px_rgba(236,72,153,0.8)]">
+                  <div className="text-6xl sm:text-[8rem] md:text-[10rem] lg:text-[12rem] animate-bounce drop-shadow-[0_0_40px_rgba(236,72,153,0.8)]">
                     🦄
                   </div>
-                  <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-wider bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(0,0,0,0.8)] animate-[rainbowText_2s_linear_infinite]">
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-black uppercase italic tracking-wider bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(0,0,0,0.8)] animate-[rainbowText_2s_linear_infinite]">
                     UNICORN!
                   </h2>
-                  <p className={`text-3xl md:text-5xl font-black mt-2 ${
+                  <p className={`text-xl sm:text-2xl md:text-3xl lg:text-5xl font-black mt-1 sm:mt-2 ${
                     winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
                   } drop-shadow-[0_0_15px_rgba(0,0,0,0.6)]`}>
                     {winningTeam === 'team1' ? 'BLUE' : 'RED'} WINS {winningScore}-0!
@@ -614,15 +648,15 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                 </>
               ) : (
                 <>
-                  <Trophy className={`w-24 h-24 mx-auto mb-4 ${
+                  <Trophy className={`w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto mb-2 sm:mb-4 ${
                     winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
                   } drop-shadow-[0_0_30px_rgba(250,204,21,0.8)] animate-bounce`} />
-                  <h2 className={`text-6xl md:text-8xl font-black uppercase italic tracking-wider ${
+                  <h2 className={`text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black uppercase italic tracking-wider ${
                     winningTeam === 'team1' ? 'text-blue-400' : 'text-red-400'
                   } drop-shadow-[0_0_20px_rgba(0,0,0,0.8)]`}>
                     {winningTeam === 'team1' ? 'BLUE' : 'RED'}
                   </h2>
-                  <p className="text-4xl md:text-6xl font-black text-foos-gold mt-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse">
+                  <p className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-black text-foos-gold mt-1 sm:mt-2 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse">
                     WINS!
                   </p>
                 </>

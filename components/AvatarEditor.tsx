@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { useImageCapture } from '../hooks/useImageCapture';
+import { useAvatarQueue } from '../hooks/useAvatarQueue';
 import { Camera, X, SwitchCamera, Sparkles, Loader2, KeyRound } from 'lucide-react';
+import { Toast } from '../types';
 
 interface AvatarEditorProps {
   isOpen: boolean;
@@ -8,7 +10,9 @@ interface AvatarEditorProps {
   onSave: (imageUrl: string | null) => void;
   currentImageUrl?: string | null;
   playerNickname?: string;
+  playerId?: string;
   title?: string;
+  addToast?: (toast: Omit<Toast, 'id'>) => string;
 }
 
 const AvatarEditor: React.FC<AvatarEditorProps> = ({
@@ -17,7 +21,9 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
   onSave,
   currentImageUrl = null,
   playerNickname = '',
+  playerId,
   title = 'Edit Avatar',
+  addToast,
 }) => {
   const {
     imagePreview,
@@ -39,7 +45,11 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
     setApiKeyInput,
     handleSaveApiKey,
     handleClearApiKey,
-  } = useImageCapture({ initialImage: currentImageUrl });
+    canStartBackgroundGeneration,
+  } = useImageCapture({ initialImage: currentImageUrl, addToast });
+
+  const { startGeneration, isGenerating: isGeneratingInBackground } = useAvatarQueue();
+  const isPlayerGenerating = playerId ? isGeneratingInBackground(playerId) : false;
 
   // Reset to current image when modal opens
   useEffect(() => {
@@ -49,6 +59,21 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
       stopCamera();
     }
   }, [isOpen, currentImageUrl, setImagePreview, stopCamera]);
+
+  const handleAiMakeover = () => {
+    // If we have a playerId, use background generation
+    if (playerId && imagePreview && canStartBackgroundGeneration()) {
+      startGeneration(playerId, playerNickname, imagePreview);
+      if (addToast) {
+        addToast({ type: 'info', message: `AI Makeover started for ${playerNickname}` });
+      }
+      // Close the modal immediately - generation happens in background
+      onClose();
+    } else {
+      // Fallback to blocking generation (shouldn't happen if playerId is provided)
+      generateAiAvatar(playerNickname);
+    }
+  };
 
   const handleSave = () => {
     onSave(imagePreview);
@@ -84,7 +109,9 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
           </div>
 
           {/* Avatar Preview Area */}
-          <div className="relative w-48 h-48 mx-auto rounded-full bg-slate-900 border-2 border-dashed border-slate-600 overflow-hidden shadow-inner">
+          <div className={`relative w-48 h-48 mx-auto rounded-full bg-slate-900 border-2 border-dashed overflow-hidden shadow-inner ${
+            isPlayerGenerating ? 'border-foos-brand animate-pulse' : 'border-slate-600'
+          }`}>
             {isCameraOpen ? (
               <>
                 <video
@@ -128,9 +155,23 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
                     <span className="text-xs font-bold uppercase tracking-widest">Designing...</span>
                   </div>
                 )}
+
+                {/* Show generating badge when background generation is active */}
+                {isPlayerGenerating && (
+                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-foos-brand rounded-full flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 text-white animate-spin" />
+                  </div>
+                )}
               </>
             )}
           </div>
+
+          {/* Generating in background message */}
+          {isPlayerGenerating && (
+            <p className="text-center text-foos-brand text-xs mt-2 animate-pulse">
+              Avatar generating in background...
+            </p>
+          )}
 
           {/* Control Buttons */}
           <div className="flex flex-wrap justify-center gap-2 mt-4">
@@ -156,9 +197,9 @@ const AvatarEditor: React.FC<AvatarEditorProps> = ({
             {imagePreview && !isCameraOpen && (
               <button
                 type="button"
-                onClick={() => generateAiAvatar(playerNickname)}
-                disabled={isGenerating}
-                className="text-xs bg-foos-brand hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold shadow-lg shadow-orange-500/20"
+                onClick={handleAiMakeover}
+                disabled={isGenerating || isPlayerGenerating}
+                className="text-xs bg-foos-brand hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Sparkles className="w-3 h-3" />
                 AI Makeover

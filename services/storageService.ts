@@ -1,4 +1,4 @@
-import { GlobalPlayer, TournamentData, TournamentSummary, AppState, DEFAULT_TOURNAMENT_SETTINGS } from '../types';
+import { GlobalPlayer, TournamentData, TournamentSummary, AppState, DEFAULT_TOURNAMENT_SETTINGS, FoosballExport, NicknameConflict } from '../types';
 
 // Storage keys
 const KEYS = {
@@ -23,12 +23,13 @@ export const loadGlobalPlayers = (): GlobalPlayer[] => {
   }
 };
 
-export const saveGlobalPlayers = (players: GlobalPlayer[]) => {
+export const saveGlobalPlayers = (players: GlobalPlayer[]): boolean => {
   try {
     localStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
+    return true;
   } catch (e) {
     console.error("Failed to save players", e);
-    alert("Warning: Storage limit reached. Images might be too large.");
+    return false;
   }
 };
 
@@ -85,7 +86,7 @@ export const loadTournament = (id: string): TournamentData | null => {
   }
 };
 
-export const saveTournament = (data: TournamentData) => {
+export const saveTournament = (data: TournamentData): boolean => {
   try {
     localStorage.setItem(KEYS.TOURNAMENT_PREFIX + data.id, JSON.stringify(data));
 
@@ -105,9 +106,10 @@ export const saveTournament = (data: TournamentData) => {
       list.push(summary);
     }
     saveTournamentList(list);
+    return true;
   } catch (e) {
     console.error("Failed to save tournament", e);
-    alert("Warning: Storage limit reached. Images might be too large.");
+    return false;
   }
 };
 
@@ -148,7 +150,7 @@ export const saveAppState = (state: AppState) => {
 };
 
 // ============================================
-// Export Data
+// Export Data (Legacy - single tournament)
 // ============================================
 
 export const exportTournamentData = (data: TournamentData, globalPlayers: GlobalPlayer[]) => {
@@ -167,6 +169,188 @@ export const exportTournamentData = (data: TournamentData, globalPlayers: Global
   document.body.appendChild(downloadAnchorNode);
   downloadAnchorNode.click();
   downloadAnchorNode.remove();
+};
+
+// ============================================
+// Full Import/Export (all data)
+// ============================================
+
+// Export all app data
+export const exportAllData = (): FoosballExport => {
+  const globalPlayers = loadGlobalPlayers();
+  const tournamentSummaries = loadTournamentList();
+  const tournaments = tournamentSummaries
+    .map(s => loadTournament(s.id))
+    .filter((t): t is TournamentData => t !== null);
+
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    globalPlayers,
+    tournaments,
+  };
+};
+
+// Validate import data structure
+export const validateImport = (data: unknown): FoosballExport | null => {
+  if (!data || typeof data !== 'object') return null;
+
+  const d = data as Record<string, unknown>;
+
+  // Check version
+  if (d.version !== 1) return null;
+
+  // Check required arrays
+  if (!Array.isArray(d.globalPlayers)) return null;
+  if (!Array.isArray(d.tournaments)) return null;
+
+  // Check exportedAt
+  if (typeof d.exportedAt !== 'number') return null;
+
+  return data as FoosballExport;
+};
+
+// Find nickname conflicts between import data and existing data
+export const findNicknameConflicts = (data: FoosballExport): NicknameConflict[] => {
+  const existingPlayers = loadGlobalPlayers();
+  const conflicts: NicknameConflict[] = [];
+
+  for (const importingPlayer of data.globalPlayers) {
+    // If ID matches, it's the same player - no conflict
+    const existingById = existingPlayers.find(p => p.id === importingPlayer.id);
+    if (existingById) continue;
+
+    // Check for nickname collision (case-insensitive)
+    const existingByNickname = existingPlayers.find(
+      p => p.nickname.toLowerCase() === importingPlayer.nickname.toLowerCase()
+    );
+    if (existingByNickname) {
+      conflicts.push({ importingPlayer, existingPlayer: existingByNickname });
+    }
+  }
+
+  return conflicts;
+};
+
+// Clear all existing data
+const clearAllData = () => {
+  // Get all tournament IDs first
+  const tournamentSummaries = loadTournamentList();
+
+  // Remove all tournament data
+  for (const summary of tournamentSummaries) {
+    localStorage.removeItem(KEYS.TOURNAMENT_PREFIX + summary.id);
+  }
+
+  // Clear lists
+  localStorage.removeItem(KEYS.PLAYERS);
+  localStorage.removeItem(KEYS.TOURNAMENTS);
+  localStorage.removeItem(KEYS.APP_STATE);
+};
+
+// Import with overwrite (replace all existing data)
+export const importOverwrite = (data: FoosballExport): void => {
+  // Clear everything first
+  clearAllData();
+
+  // Save all global players
+  saveGlobalPlayers(data.globalPlayers);
+
+  // Save all tournaments (this also updates the tournament list)
+  for (const tournament of data.tournaments) {
+    saveTournament(tournament);
+  }
+};
+
+// Import with merge
+// resolutions: Map of importing player ID -> 'merge' (use existing) | new nickname string
+export const importMerge = (
+  data: FoosballExport,
+  resolutions: Map<string, 'merge' | string>
+): void => {
+  const existingPlayers = loadGlobalPlayers();
+  const existingPlayersByNickname = new Map(
+    existingPlayers.map(p => [p.nickname.toLowerCase(), p])
+  );
+  const existingPlayersById = new Map(existingPlayers.map(p => [p.id, p]));
+
+  // Track ID mappings: importing ID -> final ID (for updating tournament references)
+  const idMappings = new Map<string, string>();
+
+  // Process players
+  const newPlayers = [...existingPlayers];
+
+  for (const importingPlayer of data.globalPlayers) {
+    // If ID already exists locally, skip (keep local data)
+    if (existingPlayersById.has(importingPlayer.id)) {
+      idMappings.set(importingPlayer.id, importingPlayer.id);
+      continue;
+    }
+
+    // Check if there's a resolution for this player (nickname conflict)
+    const resolution = resolutions.get(importingPlayer.id);
+
+    if (resolution === 'merge') {
+      // Merge with existing player - find by nickname
+      const existingPlayer = existingPlayersByNickname.get(importingPlayer.nickname.toLowerCase());
+      if (existingPlayer) {
+        idMappings.set(importingPlayer.id, existingPlayer.id);
+        continue;
+      }
+    } else if (resolution && resolution !== 'merge') {
+      // Create with new nickname
+      const newPlayer: GlobalPlayer = {
+        ...importingPlayer,
+        id: generateId(), // Generate new ID to avoid any conflicts
+        nickname: resolution,
+      };
+      newPlayers.push(newPlayer);
+      idMappings.set(importingPlayer.id, newPlayer.id);
+      continue;
+    }
+
+    // No conflict - add as new player
+    newPlayers.push(importingPlayer);
+    idMappings.set(importingPlayer.id, importingPlayer.id);
+  }
+
+  // Save merged players
+  saveGlobalPlayers(newPlayers);
+
+  // Process tournaments
+  const existingTournaments = loadTournamentList();
+  const existingTournamentIds = new Set(existingTournaments.map(t => t.id));
+
+  for (const tournament of data.tournaments) {
+    // Skip if tournament ID already exists
+    if (existingTournamentIds.has(tournament.id)) {
+      continue;
+    }
+
+    // Update player references in tournament
+    const updatedTournament: TournamentData = {
+      ...tournament,
+      players: tournament.players.map(tp => ({
+        ...tp,
+        globalPlayerId: idMappings.get(tp.globalPlayerId) || tp.globalPlayerId,
+      })),
+      matches: tournament.matches.map(m => ({
+        ...m,
+        team1: {
+          ...m.team1,
+          attackerId: idMappings.get(m.team1.attackerId) || m.team1.attackerId,
+          defenderId: idMappings.get(m.team1.defenderId) || m.team1.defenderId,
+        },
+        team2: {
+          ...m.team2,
+          attackerId: idMappings.get(m.team2.attackerId) || m.team2.attackerId,
+          defenderId: idMappings.get(m.team2.defenderId) || m.team2.defenderId,
+        },
+      })),
+    };
+
+    saveTournament(updatedTournament);
+  }
 };
 
 // ============================================

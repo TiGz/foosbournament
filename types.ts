@@ -125,3 +125,54 @@ export interface Player {
   points: number;
   unicorns: number;
 }
+
+// ============================================
+// Import/Export Types
+// ============================================
+
+// Full export format containing all app data
+export interface FoosballExport {
+  version: 1;
+  exportedAt: number;
+  globalPlayers: GlobalPlayer[];
+  tournaments: TournamentData[];
+}
+
+// Plugin interface for different storage backends
+export interface StoragePlugin {
+  name: string;
+  export(data: FoosballExport): Promise<void>;
+  import(): Promise<FoosballExport | null>;
+}
+
+// Nickname conflict for merge resolution
+export interface NicknameConflict {
+  importingPlayer: GlobalPlayer;
+  existingPlayer: GlobalPlayer;
+}
+
+// ============================================
+// Toast Types
+// ============================================
+
+export interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'loading';
+  message: string;
+  duration?: number; // ms, null/undefined = use default
+}
+
+// ============================================
+// Avatar Generation Queue Types
+// ============================================
+
+export interface AvatarJob {
+  id: string;
+  playerId: string;
+  nickname: string;
+  sourceImage: string;  // base64 data URL
+  status: 'pending' | 'generating' | 'completed' | 'failed';
+  result?: string;      // generated avatar base64
+  error?: string;
+  createdAt: number;
+}

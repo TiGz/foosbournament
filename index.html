@@ -10,10 +10,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Foosball" />
+    <!-- Google Fonts: Lexend (display/body) + JetBrains Mono (scores/numbers) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
+          // Extended breakpoints for better responsive scaling
+          screens: {
+            'xs': '375px',    // Small phones
+            'sm': '480px',    // Large phones
+            'md': '768px',    // Tablets
+            'lg': '1024px',   // Small laptops
+            'xl': '1280px',   // Desktops
+            '2xl': '1536px',  // Large desktops
+          },
           extend: {
             colors: {
               foos: {
@@ -27,8 +40,42 @@
               }
             },
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['Fira Code', 'monospace'],
+              sans: ['Lexend', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            fontSize: {
+              // Minimum readable size (11px)
+              '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+              // Fluid typography using clamp() for smooth scaling
+              'fluid-xs': ['clamp(0.625rem, 0.5rem + 0.5vw, 0.75rem)', { lineHeight: '1.25' }],      // 10-12px
+              'fluid-sm': ['clamp(0.75rem, 0.625rem + 0.5vw, 0.875rem)', { lineHeight: '1.35' }],    // 12-14px
+              'fluid-base': ['clamp(0.875rem, 0.75rem + 0.5vw, 1rem)', { lineHeight: '1.5' }],       // 14-16px
+              'fluid-lg': ['clamp(1rem, 0.875rem + 0.5vw, 1.125rem)', { lineHeight: '1.5' }],        // 16-18px
+              'fluid-xl': ['clamp(1.25rem, 1rem + 1vw, 1.5rem)', { lineHeight: '1.4' }],             // 20-24px
+              'fluid-2xl': ['clamp(1.5rem, 1.25rem + 1vw, 2rem)', { lineHeight: '1.3' }],            // 24-32px
+              'fluid-score': ['clamp(4rem, 3rem + 4vw, 8rem)', { lineHeight: '1' }],                 // Match scores
+            },
+            spacing: {
+              'touch': '2.75rem',    // 44px minimum touch target
+              'touch-lg': '3rem',    // 48px comfortable touch
+            },
+            borderRadius: {
+              'card': '0.75rem',     // 12px - cards, panels
+              'card-lg': '1rem',     // 16px - modals
+              'button': '0.5rem',    // 8px - buttons
+            },
+            boxShadow: {
+              'card': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
+              'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15)',
+              'modal': '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              'glow-brand': '0 0 20px rgba(249, 115, 22, 0.3)',
+              'glow-accent': '0 0 20px rgba(6, 182, 212, 0.3)',
+              'glow-gold': '0 0 20px rgba(245, 158, 11, 0.3)',
+              'button-brand': '0 4px 14px 0 rgba(249, 115, 22, 0.25)',
+              'button-accent': '0 4px 14px 0 rgba(6, 182, 212, 0.25)',
+            },
+            maxWidth: {
+              'content': '1400px',  // Max content width for ultra-wide displays
             },
             animation: {
               'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -62,6 +109,14 @@
               rainbowText: {
                 '0%': { filter: 'hue-rotate(0deg)' },
                 '100%': { filter: 'hue-rotate(360deg)' },
+              },
+              slideInFromBelow: {
+                '0%': { transform: 'translateY(10px)', opacity: '0.5' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              leaderGlow: {
+                '0%, 100%': { boxShadow: '0 0 20px rgba(251, 191, 36, 0.3)' },
+                '50%': { boxShadow: '0 0 40px rgba(251, 191, 36, 0.6)' },
               },
             }
           }

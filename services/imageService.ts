@@ -2,7 +2,7 @@
  * Image manipulation utilities for avatar handling
  */
 
-export const DEFAULT_MAX_IMAGE_WIDTH = 800;
+export const DEFAULT_MAX_IMAGE_WIDTH = 200;
 
 /**
  * Resize an image to a maximum width while preserving aspect ratio
@@ -22,7 +22,7 @@ export const resizeImage = (base64Str: string, maxWidth: number = DEFAULT_MAX_IM
       canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d');
       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
     };
   });
 };
@@ -41,7 +41,7 @@ export const captureFromVideo = (video: HTMLVideoElement, mirror: boolean = true
     ctx.scale(-1, 1);
   }
   ctx?.drawImage(video, 0, 0);
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return canvas.toDataURL('image/jpeg', 0.7);
 };
 
 /**

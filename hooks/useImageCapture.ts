@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { resizeImage, captureFromVideo, fileToBase64, DEFAULT_MAX_IMAGE_WIDTH } from '../services/imageService';
+import { captureFromVideo, fileToBase64 } from '../services/imageService';
 import { generateAvatar, hasApiKey, setApiKey, clearApiKey } from '../services/geminiService';
+import { Toast } from '../types';
+
+type AddToast = (toast: Omit<Toast, 'id'>) => string;
 
 interface UseImageCaptureOptions {
   initialImage?: string | null;
-  maxWidth?: number;
+  addToast?: AddToast;
 }
 
 interface UseImageCaptureReturn {
@@ -39,11 +42,12 @@ interface UseImageCaptureReturn {
 
   // Utilities
   clearImage: () => void;
+
+  // Pre-flight check for background generation
+  canStartBackgroundGeneration: () => boolean;
 }
 
 export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptureReturn => {
-  const maxWidth = options?.maxWidth ?? DEFAULT_MAX_IMAGE_WIDTH;
-
   const [imagePreview, setImagePreview] = useState<string | null>(options?.initialImage ?? null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -54,6 +58,8 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const addToast = options?.addToast;
 
   // Stop camera utility
   const stopCamera = useCallback(() => {
@@ -100,7 +106,9 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
           }
         } catch (err) {
           console.error("Error accessing camera:", err);
-          alert("Could not access camera. Please check permissions.");
+          if (addToast) {
+            addToast({ type: 'error', message: 'Could not access camera. Please check permissions.' });
+          }
           setIsCameraOpen(false);
         }
       } else {
@@ -113,21 +121,20 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
     return () => {
       mounted = false;
     };
-  }, [isCameraOpen, stopCamera]);
+  }, [isCameraOpen, stopCamera, addToast]);
 
   const startCamera = useCallback(() => {
     setImagePreview(null);
     setIsCameraOpen(true);
   }, []);
 
-  const capturePhoto = useCallback(async () => {
+  const capturePhoto = useCallback(() => {
     if (videoRef.current) {
       const dataUrl = captureFromVideo(videoRef.current, true);
-      const resized = await resizeImage(dataUrl, maxWidth);
-      setImagePreview(resized);
+      setImagePreview(dataUrl);
       setIsCameraOpen(false);
     }
-  }, [maxWidth]);
+  }, []);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -137,17 +144,38 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
     const file = e.target.files?.[0];
     if (file) {
       const base64 = await fileToBase64(file);
-      const resized = await resizeImage(base64, maxWidth);
-      setImagePreview(resized);
+      setImagePreview(base64);
       setIsCameraOpen(false);
     }
-  }, [maxWidth]);
+  }, []);
 
+  // Check if background generation can be started (for pre-flight validation)
+  const canStartBackgroundGeneration = useCallback((): boolean => {
+    if (!imagePreview) return false;
+
+    if (!navigator.onLine) {
+      if (addToast) {
+        addToast({ type: 'error', message: 'AI Makeover requires an internet connection. Please try again when online.' });
+      }
+      return false;
+    }
+
+    if (!hasApiKey()) {
+      setShowApiKeyModal(true);
+      return false;
+    }
+
+    return true;
+  }, [imagePreview, addToast]);
+
+  // Original blocking generation (kept for backwards compatibility in preview mode)
   const generateAiAvatar = useCallback(async (nickname: string) => {
     if (!imagePreview) return;
 
     if (!navigator.onLine) {
-      alert("AI Makeover requires an internet connection. Please try again when online.");
+      if (addToast) {
+        addToast({ type: 'error', message: 'AI Makeover requires an internet connection. Please try again when online.' });
+      }
       return;
     }
 
@@ -175,12 +203,14 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
         setShowApiKeyModal(true);
       } else {
         const message = error instanceof Error ? error.message : "Unknown error";
-        alert(`AI Generation Failed: ${message}`);
+        if (addToast) {
+          addToast({ type: 'error', message: `AI Generation Failed: ${message}` });
+        }
       }
     } finally {
       setIsGenerating(false);
     }
-  }, [imagePreview]);
+  }, [imagePreview, addToast]);
 
   const handleSaveApiKey = useCallback(() => {
     if (apiKeyInput.trim()) {
@@ -224,5 +254,6 @@ export const useImageCapture = (options?: UseImageCaptureOptions): UseImageCaptu
     handleSaveApiKey,
     handleClearApiKey,
     clearImage,
+    canStartBackgroundGeneration,
   };
 };
