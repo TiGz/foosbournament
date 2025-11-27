@@ -56,12 +56,12 @@ export const getLeaderboard = (players: PlayerView[]): PlayerView[] => {
   });
 };
 
-// Check if a match is a unicorn (N-0 shutout where N is the winning score)
-export const isUnicornMatch = (match: Match, settings?: TournamentSettings): boolean => {
-  const winScore = getWinningScore(settings);
+// Check if a match is a unicorn (10-0 shutout ONLY - regardless of winning score setting)
+export const isUnicornMatch = (match: Match, _settings?: TournamentSettings): boolean => {
+  // Unicorn is ONLY a 10-0 shutout, regardless of tournament target score
   const t1 = match.team1;
   const t2 = match.team2;
-  return (t1.score === winScore && t2.score === 0) || (t2.score === winScore && t1.score === 0);
+  return (t1.score === 10 && t2.score === 0) || (t2.score === 10 && t1.score === 0);
 };
 
 // Update stats after a match

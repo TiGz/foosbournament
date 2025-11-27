@@ -126,6 +126,9 @@ const OptionsModal: React.FC<Props> = ({
             <div className="flex items-center gap-2 mb-3">
               <Target className="w-4 h-4 text-foos-accent" />
               <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">First to Score</span>
+              {localSettings.winningScore === 10 && (
+                <span className="text-lg" title="Unicorn bonus active at this score!">🦄</span>
+              )}
             </div>
             <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
               <div className="flex items-center justify-between mb-3">
@@ -157,7 +160,7 @@ const OptionsModal: React.FC<Props> = ({
               <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Unicorn Bonus</span>
             </div>
             <p className="text-slate-500 text-xs mb-3">
-              Extra points awarded for a shutout victory ({localSettings.winningScore}-0)
+              Extra points awarded for a 10-0 shutout victory (only when target score is 10)
             </p>
             <div className="grid grid-cols-3 gap-2">
               {([0, 1, 2] as const).map(value => (

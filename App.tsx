@@ -478,7 +478,8 @@ const App: React.FC = () => {
   const handleUpdateScore = useCallback((team: 'team1' | 'team2', delta: number) => {
     setCurrentMatch(prev => {
       if (!prev) return null;
-      const newScore = Math.max(0, prev[team].score + delta);
+      const winningScore = getWinningScore(currentTournament?.settings);
+      const newScore = Math.min(winningScore, Math.max(0, prev[team].score + delta));
       const newMatch = {
         ...prev,
         [team]: { ...prev[team], score: newScore }
@@ -495,7 +496,7 @@ const App: React.FC = () => {
 
       return newMatch;
     });
-  }, []);
+  }, [currentTournament?.settings]);
 
   const handleUndo = useCallback(() => {
     const currentIndex = indexRef.current;
@@ -575,7 +576,7 @@ const App: React.FC = () => {
     // Update lifetime stats for global players
     const winningTeam = completedMatch[winner];
     const losingTeam = completedMatch[winner === 'team1' ? 'team2' : 'team1'];
-    const isUnicorn = losingTeam.score === 0;
+    const isUnicorn = winningTeam.score === 10 && losingTeam.score === 0;
 
     setGlobalPlayers(prev => prev.map(gp => {
       const isWinner = gp.id === winningTeam.attackerId || gp.id === winningTeam.defenderId;

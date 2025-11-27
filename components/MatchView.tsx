@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Match, PlayerView, TournamentSettings } from '../types';
 import { getWinningScore } from '../services/tournamentLogic';
-import { Trophy, Minus, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles } from 'lucide-react';
+import { Trophy, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles } from 'lucide-react';
 import OptionsModal from './OptionsModal';
 
 // Sound generation using Web Audio API
@@ -192,6 +192,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   const isPositionMode = settings.isPositionMode;
   const winningScore = getWinningScore(settings);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [winningTeam, setWinningTeam] = useState<'team1' | 'team2' | null>(null);
   const [isUnicorn, setIsUnicorn] = useState(false);
@@ -206,10 +207,14 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Team 1: Left Shift or A
-      if (e.code === 'ShiftLeft' || e.code === 'KeyA') onUpdateScore('team1', 1);
-      // Team 2: Right Shift or L
-      if (e.code === 'ShiftRight' || e.code === 'KeyL') onUpdateScore('team2', 1);
+      // Team 1: Left Shift or A - only if not at max
+      if ((e.code === 'ShiftLeft' || e.code === 'KeyA') && match.team1.score < winningScore) {
+        onUpdateScore('team1', 1);
+      }
+      // Team 2: Right Shift or L - only if not at max
+      if ((e.code === 'ShiftRight' || e.code === 'KeyL') && match.team2.score < winningScore) {
+        onUpdateScore('team2', 1);
+      }
       // Undo: Cmd/Ctrl + Z
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ' && !e.shiftKey) {
         e.preventDefault();
@@ -223,7 +228,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onUpdateScore, onUndo, onRedo]);
+  }, [onUpdateScore, onUndo, onRedo, match.team1.score, match.team2.score, winningScore]);
 
   // Announce match start
   useEffect(() => {
@@ -248,7 +253,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   // Trigger win animation when someone wins
   useEffect(() => {
     if (isWinner1 && winningTeam !== 'team1') {
-      const unicornWin = match.team2.score === 0;
+      const unicornWin = match.team1.score === 10 && match.team2.score === 0;
       setWinningTeam('team1');
       setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
@@ -267,7 +272,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         }, soundDuration);
       }
     } else if (isWinner2 && winningTeam !== 'team2') {
-      const unicornWin = match.team1.score === 0;
+      const unicornWin = match.team2.score === 10 && match.team1.score === 0;
       setWinningTeam('team2');
       setIsUnicorn(unicornWin);
       setShowWinAnimation(true);
@@ -388,7 +393,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
 
       {/* Top Bar */}
       <div className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-2 sm:px-4 md:px-6 z-30 shadow-2xl relative">
-        <button onClick={onCancelMatch} className="text-slate-500 hover:text-white flex items-center gap-1.5 sm:gap-2 transition uppercase text-2xs sm:text-fluid-xs font-bold tracking-widest p-2 rounded-button hover:bg-slate-800 active:scale-95">
+        <button onClick={() => setShowCancelConfirm(true)} className="text-slate-500 hover:text-white flex items-center gap-1.5 sm:gap-2 transition uppercase text-2xs sm:text-fluid-xs font-bold tracking-widest p-2 rounded-button hover:bg-slate-800 active:scale-95">
             <XCircle className="w-4 h-4 sm:w-5 sm:h-5" /> <span className="hidden sm:inline">Cancel</span>
         </button>
 
@@ -398,6 +403,20 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                <Star className="w-4 h-4 text-foos-gold" />
                <span className="text-white font-black text-fluid-base sm:text-fluid-lg tabular-nums font-mono">{winningScore}</span>
                <span className="text-slate-500 text-2xs sm:text-fluid-xs font-bold uppercase tracking-wide hidden md:inline">to win</span>
+               {winningScore === 10 && (
+                 <span
+                   className={`ml-1 text-lg sm:text-xl transition-opacity duration-300 ${
+                     match.team1.score === 0 || match.team2.score === 0
+                       ? 'opacity-100'
+                       : 'opacity-30 grayscale'
+                   }`}
+                   title={match.team1.score === 0 || match.team2.score === 0
+                     ? "Unicorn possible! A 10-0 shutout earns bonus points"
+                     : "Unicorn no longer possible"}
+                 >
+                   🦄
+                 </span>
+               )}
              </div>
         </div>
 
@@ -457,10 +476,16 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('[DEBUG] Team 1 + clicked');
-                        onUpdateScore('team1', 1);
+                        if (match.team1.score < winningScore) {
+                          onUpdateScore('team1', 1);
+                        }
                       }}
-                      className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-foos-blue hover:bg-blue-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-95 transition"
+                      disabled={match.team1.score >= winningScore}
+                      className={`w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl flex items-center justify-center transition ${
+                        match.team1.score >= winningScore
+                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                          : 'bg-foos-blue hover:bg-blue-400 text-white shadow-lg shadow-blue-500/30 active:scale-95'
+                      }`}
                    >
                        <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
                    </button>
@@ -472,13 +497,6 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                  <div className="text-fluid-score font-black text-white tabular-nums leading-none select-none py-2 sm:py-3 md:py-4 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)] font-mono">
                      {match.team1.score}
                  </div>
-
-                 <button
-                    onClick={() => onUpdateScore('team1', -1)}
-                    className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition active:scale-95"
-                 >
-                     <Minus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                 </button>
              </div>
 
              {isWinner1 && <Trophy className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-foos-gold mt-6 sm:mt-8 md:mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
@@ -540,10 +558,16 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('[DEBUG] Team 2 + clicked');
-                        onUpdateScore('team2', 1);
+                        if (match.team2.score < winningScore) {
+                          onUpdateScore('team2', 1);
+                        }
                       }}
-                      className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-foos-red hover:bg-red-400 text-white flex items-center justify-center shadow-lg shadow-red-500/30 active:scale-95 transition"
+                      disabled={match.team2.score >= winningScore}
+                      className={`w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl md:rounded-2xl flex items-center justify-center transition ${
+                        match.team2.score >= winningScore
+                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                          : 'bg-foos-red hover:bg-red-400 text-white shadow-lg shadow-red-500/30 active:scale-95'
+                      }`}
                    >
                        <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
                    </button>
@@ -555,13 +579,6 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                  <div className="text-fluid-score font-black text-white tabular-nums leading-none select-none py-2 sm:py-3 md:py-4 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)] font-mono">
                      {match.team2.score}
                  </div>
-
-                 <button
-                    onClick={() => onUpdateScore('team2', -1)}
-                    className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl border-2 border-slate-700 hover:bg-slate-800 text-slate-400 flex items-center justify-center transition active:scale-95"
-                 >
-                     <Minus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
-                 </button>
              </div>
 
              {isWinner2 && <Trophy className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-foos-gold mt-6 sm:mt-8 md:mt-12 animate-bounce drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]" />}
@@ -674,6 +691,41 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
         onSave={onUpdateSettings}
         hasCompletedMatches={false}
       />
+
+      {/* Cancel Match Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCancelConfirm(false)}>
+          <div
+            className="bg-foos-panel border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 text-center">
+              <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-black text-white uppercase italic tracking-wide mb-2">Cancel Match?</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                This will discard the current match and return to the dashboard. The score will not be saved.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition"
+                >
+                  Keep Playing
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCancelConfirm(false);
+                    onCancelMatch();
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition"
+                >
+                  Cancel Match
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
