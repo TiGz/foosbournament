@@ -57,7 +57,7 @@ const PlayerSetup: React.FC<Props> = ({
     canStartBackgroundGeneration,
   } = useImageCapture({ addToast });
 
-  const { startGeneration, isGenerating: isGeneratingInBackground } = useAvatarQueue();
+  const { startGeneration, isGenerating: isGeneratingForPlayer } = useAvatarQueue();
 
   // Get players not in tournament
   const availablePlayers = globalPlayers.filter(
@@ -330,7 +330,7 @@ const PlayerSetup: React.FC<Props> = ({
                 </div>
               )}
               {players.map(p => {
-                const isPlayerGenerating = isGenerating(p.id);
+                const isPlayerGenerating = isGeneratingForPlayer(p.id);
                 return (
                   <div key={p.id} className="flex items-center justify-between bg-slate-900 p-3 rounded-card border border-slate-800 group hover:border-slate-700 hover:shadow-card-hover transition-all">
                     <div className="flex items-center gap-3">

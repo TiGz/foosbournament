@@ -207,12 +207,14 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Team 1: Left Shift or A - only if not at max
-      if ((e.code === 'ShiftLeft' || e.code === 'KeyA') && match.team1.score < winningScore) {
+      // Team 1 (Blue/Left): Left Arrow or A - only if not at max
+      if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && match.team1.score < winningScore) {
+        e.preventDefault();
         onUpdateScore('team1', 1);
       }
-      // Team 2: Right Shift or L - only if not at max
-      if ((e.code === 'ShiftRight' || e.code === 'KeyL') && match.team2.score < winningScore) {
+      // Team 2 (Red/Right): Right Arrow or L - only if not at max
+      if ((e.code === 'ArrowRight' || e.code === 'KeyL') && match.team2.score < winningScore) {
+        e.preventDefault();
         onUpdateScore('team2', 1);
       }
       // Undo: Cmd/Ctrl + Z
@@ -490,7 +492,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                        <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
                    </button>
                    {hasKeyboard && (
-                     <span className="mt-1.5 text-2xs text-slate-500 font-mono tracking-tight hidden md:block">Left Shift</span>
+                     <span className="mt-2 text-xs text-slate-400 font-bold tracking-tight hidden md:block">← Arrow</span>
                    )}
                  </div>
 
@@ -572,7 +574,7 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                        <Plus className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 pointer-events-none" />
                    </button>
                    {hasKeyboard && (
-                     <span className="mt-1.5 text-2xs text-slate-500 font-mono tracking-tight hidden md:block">Right Shift</span>
+                     <span className="mt-2 text-xs text-slate-400 font-bold tracking-tight hidden md:block">→ Arrow</span>
                    )}
                  </div>
 
