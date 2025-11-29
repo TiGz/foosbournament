@@ -1,8 +1,8 @@
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Match, PlayerView, TournamentSettings } from '../types';
 import { getWinningScore } from '../services/tournamentLogic';
-import { Trophy, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles } from 'lucide-react';
+import { Trophy, Plus, Save, Shield, Sword, XCircle, Undo2, Redo2, Settings, Star, Sparkles, RefreshCw } from 'lucide-react';
 import OptionsModal from './OptionsModal';
 
 // Sound generation using Web Audio API
@@ -186,9 +186,10 @@ interface Props {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onSwapPlayer?: (team: 'team1' | 'team2', position: 'attacker' | 'defender', newPlayerId: string) => void;
 }
 
-const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, settings, onUpdateSettings, onUndo, onRedo, canUndo, canRedo }) => {
+const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMatch, onCancelMatch, settings, onUpdateSettings, onUndo, onRedo, canUndo, canRedo, onSwapPlayer }) => {
   const isPositionMode = settings.isPositionMode;
   const winningScore = getWinningScore(settings);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
@@ -196,6 +197,21 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [winningTeam, setWinningTeam] = useState<'team1' | 'team2' | null>(null);
   const [isUnicorn, setIsUnicorn] = useState(false);
+  const [swapSelection, setSwapSelection] = useState<{team: 'team1' | 'team2', position: 'attacker' | 'defender'} | null>(null);
+  const [swapModeActive, setSwapModeActive] = useState(false);
+
+  // Can swap players if score is low (neither team has more than 5 goals) and there are available players
+  const canSwapPlayers = match.team1.score <= 5 && match.team2.score <= 5 && onSwapPlayer;
+  const isSwappable = canSwapPlayers && swapModeActive;
+
+  // Get players not currently in the match for swap selection
+  const playersInMatch = [
+    match.team1.attackerId,
+    match.team1.defenderId,
+    match.team2.attackerId,
+    match.team2.defenderId,
+  ];
+  const availableForSwap = players.filter(p => p.isAvailable && !playersInMatch.includes(p.id));
 
   const getPlayer = (id: string) => players.find(p => p.id === id);
 
@@ -304,68 +320,96 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
     }
   }, [isWinner1, isWinner2, winningTeam, match.team1.score, match.team2.score, settings.voiceAnnouncements]);
 
+  // Handle player swap click
+  const handleAvatarClick = (team: 'team1' | 'team2', position: 'attacker' | 'defender') => {
+    if (!canSwapPlayers || availableForSwap.length === 0) return;
+    setSwapSelection({ team, position });
+  };
+
+  const handleSwapConfirm = (newPlayerId: string) => {
+    if (!swapSelection || !onSwapPlayer) return;
+    onSwapPlayer(swapSelection.team, swapSelection.position, newPlayerId);
+    setSwapSelection(null);
+    setSwapModeActive(false);
+  };
+
   // Render a single player avatar at a specific percentage position
   const renderAvatar = (player: PlayerView | undefined, role: 'Attack' | 'Defense', team: 'Blue' | 'Red') => {
     const isBlue = team === 'Blue';
     const borderColor = isBlue ? 'border-foos-blue' : 'border-foos-red';
     const glowColor = isBlue ? 'shadow-blue-500/50' : 'shadow-red-500/50';
     const labelColor = isBlue ? 'bg-blue-600' : 'bg-red-600';
+    const teamKey = isBlue ? 'team1' : 'team2';
+    const positionKey = role === 'Attack' ? 'attacker' : 'defender';
 
-    // Positioning Logic
+    // Positioning Logic - adjusted for larger avatars, moved toward center
     let style: React.CSSProperties = {};
 
     if (isPositionMode) {
         // Positional Mode: Horizontal alignment (Defense back, Attack forward)
-        // Centered vertically (top 50%)
+        // Defense at 15%, Attack at 35% - both moved more toward center
         if (isBlue) {
             style = role === 'Defense'
-                ? { left: '10%', top: '50%', transform: 'translate(-50%, -50%)' }
+                ? { left: '15%', top: '50%', transform: 'translate(-50%, -50%)' }
                 : { left: '35%', top: '50%', transform: 'translate(-50%, -50%)' };
         } else {
             style = role === 'Defense'
-                ? { right: '10%', top: '50%', transform: 'translate(50%, -50%)' }
+                ? { right: '15%', top: '50%', transform: 'translate(50%, -50%)' }
                 : { right: '35%', top: '50%', transform: 'translate(50%, -50%)' };
         }
     } else {
         // Standard Mode: Vertical alignment (Top / Bottom)
-        // Aligned horizontally on their side
         if (isBlue) {
-            style = role === 'Attack' // Using roles just to map to slot 1/2
-                ? { left: '25%', top: '30%', transform: 'translate(-50%, -50%)' }
-                : { left: '25%', top: '70%', transform: 'translate(-50%, -50%)' };
+            style = role === 'Attack'
+                ? { left: '28%', top: '35%', transform: 'translate(-50%, -50%)' }
+                : { left: '28%', top: '65%', transform: 'translate(-50%, -50%)' };
         } else {
             style = role === 'Attack'
-                ? { right: '25%', top: '30%', transform: 'translate(50%, -50%)' }
-                : { right: '25%', top: '70%', transform: 'translate(50%, -50%)' };
+                ? { right: '28%', top: '35%', transform: 'translate(50%, -50%)' }
+                : { right: '28%', top: '65%', transform: 'translate(50%, -50%)' };
         }
     }
 
+    // In non-position mode, name card goes to the side; in position mode, below
+    const nameCardPosition = !isPositionMode
+      ? (isBlue ? 'flex-row' : 'flex-row-reverse')
+      : 'flex-col';
+
     return (
-      <div className="absolute z-20 flex flex-col items-center transition-all duration-700 ease-in-out" style={style}>
-        <div className="relative group">
+      <div className={`absolute z-20 flex ${nameCardPosition} items-center gap-2 sm:gap-3 md:gap-4 transition-all duration-700 ease-in-out`} style={style}>
+        <div className="relative group flex-shrink-0">
             {isPositionMode && (
-                <div className={`absolute -top-3 sm:-top-4 left-1/2 -translate-x-1/2 z-30 px-1.5 sm:px-2 py-0.5 rounded-full text-2xs sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-0.5 sm:gap-1 shadow-sm border border-white/20 ${labelColor} text-white`}>
-                    {role === 'Attack' ? <Sword className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> : <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
-                    <span className="hidden xs:inline">{role === 'Attack' ? 'ATT' : 'DEF'}</span>
+                <div className={`absolute -top-4 sm:-top-5 md:-top-6 left-1/2 -translate-x-1/2 z-30 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 shadow-sm border border-white/20 ${labelColor} text-white`}>
+                    {role === 'Attack' ? <Sword className="w-3 h-3 sm:w-4 sm:h-4" /> : <Shield className="w-3 h-3 sm:w-4 sm:h-4" />}
+                    <span>{role === 'Attack' ? 'ATT' : 'DEF'}</span>
                 </div>
             )}
 
-            <div className={`w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 lg:w-32 lg:h-32 rounded-full border-2 sm:border-4 ${borderColor} bg-slate-900 overflow-hidden shadow-xl ${glowColor} hover:scale-105 transition-transform duration-300 ring-1 sm:ring-2 ring-black/50`}>
+
+            <button
+              onClick={() => {
+                if (isSwappable) {
+                  handleAvatarClick(teamKey, positionKey);
+                }
+              }}
+              disabled={!isSwappable}
+              className={`w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 rounded-full border-4 sm:border-[6px] ${borderColor} bg-slate-900 overflow-hidden shadow-xl ${glowColor} transition-all duration-300 ring-2 sm:ring-4 ring-black/50 ${isSwappable ? 'cursor-pointer hover:scale-105 hover:ring-foos-brand/50' : ''}`}
+            >
                 {player?.photoUrl ? (
                     <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-fluid-lg sm:text-fluid-xl md:text-2xl font-bold text-slate-500">
-                        {player?.nickname.charAt(0)}
+                    <div className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-500">
+                        {player?.nickname.charAt(0).toUpperCase()}
                     </div>
                 )}
-            </div>
+            </button>
         </div>
 
-        <div className="mt-1.5 sm:mt-2 md:mt-3 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 rounded-lg md:rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700 text-center shadow-lg min-w-[80px] sm:min-w-[100px] md:min-w-[120px]">
-          <div className="font-bold text-white text-fluid-sm sm:text-fluid-base md:text-lg truncate max-w-[70px] sm:max-w-[100px] md:max-w-[140px]">{player?.nickname}</div>
-          <div className="text-2xs sm:text-fluid-xs text-slate-400 mt-0.5 sm:mt-1 hidden sm:block">
+        <div className={`px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-3 rounded-xl md:rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-700 shadow-lg ${isPositionMode ? 'text-center min-w-[100px] sm:min-w-[130px] md:min-w-[160px] lg:min-w-[200px]' : 'text-left'}`}>
+          <div className={`font-bold text-white text-base sm:text-lg md:text-xl lg:text-2xl truncate ${isPositionMode ? 'max-w-[90px] sm:max-w-[120px] md:max-w-[150px] lg:max-w-[190px]' : 'max-w-[80px] sm:max-w-[100px] md:max-w-[120px]'}`}>{player?.nickname}</div>
+          <div className="text-xs sm:text-sm text-slate-400 mt-0.5 sm:mt-1">
             <span className="text-green-400">{player?.wins ?? 0}W</span>
-            <span className="mx-0.5 sm:mx-1">·</span>
+            <span className="mx-1 sm:mx-2">·</span>
             <span className="text-red-400">{player?.losses ?? 0}L</span>
           </div>
         </div>
@@ -431,6 +475,20 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
             <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
+            onClick={() => setSwapModeActive(!swapModeActive)}
+            disabled={!canSwapPlayers || availableForSwap.length === 0}
+            className={`p-2 rounded-button transition ${
+              !canSwapPlayers || availableForSwap.length === 0
+                ? 'text-slate-700 cursor-not-allowed'
+                : swapModeActive
+                  ? 'text-foos-brand bg-foos-brand/20 hover:bg-foos-brand/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95'
+            }`}
+            title={!canSwapPlayers ? "Swap unavailable (score too high)" : availableForSwap.length === 0 ? "No players available to swap" : swapModeActive ? "Cancel swap" : "Swap a player"}
+          >
+            <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+          <button
             onClick={onUndo}
             disabled={!canUndo}
             className={`p-2 rounded-button transition ${canUndo ? 'text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95' : 'text-slate-700 cursor-not-allowed'}`}
@@ -464,8 +522,8 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
       {/* Main Pitch Area */}
       <div className="flex-1 relative flex overflow-hidden">
         
-        {/* TEAM 1 SIDE PANEL (LEFT) */}
-        <div className={`w-20 sm:w-28 md:w-44 lg:w-56 xl:w-64 bg-slate-900 border-r-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner1 ? 'bg-blue-900/20' : ''}`}>
+        {/* TEAM 1 SIDE PANEL (LEFT) - narrower for more pitch space */}
+        <div className={`w-16 sm:w-20 md:w-28 lg:w-36 xl:w-44 bg-slate-900 border-r-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner1 ? 'bg-blue-900/20' : ''}`}>
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
              <div className="mb-4 sm:mb-6 md:mb-8 text-center">
@@ -546,8 +604,8 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
              </div>
         </div>
 
-        {/* TEAM 2 SIDE PANEL (RIGHT) */}
-        <div className={`w-20 sm:w-28 md:w-44 lg:w-56 xl:w-64 bg-slate-900 border-l-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner2 ? 'bg-red-900/20' : ''}`}>
+        {/* TEAM 2 SIDE PANEL (RIGHT) - narrower for more pitch space */}
+        <div className={`w-16 sm:w-20 md:w-28 lg:w-36 xl:w-44 bg-slate-900 border-l-4 border-slate-800 flex flex-col items-center justify-center relative z-20 transition-colors duration-500 ${isWinner2 ? 'bg-red-900/20' : ''}`}>
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
              <div className="mb-4 sm:mb-6 md:mb-8 text-center">
@@ -724,6 +782,67 @@ const MatchView: React.FC<Props> = ({ match, players, onUpdateScore, onFinishMat
                   Cancel Match
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Player Swap Modal */}
+      {swapSelection && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSwapSelection(null)}>
+          <div
+            className="bg-foos-panel border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-6 border-b border-slate-700">
+              <div className="flex items-center gap-3 mb-2">
+                <RefreshCw className="w-6 h-6 text-foos-brand" />
+                <h3 className="text-lg font-black text-white uppercase italic tracking-wide">Swap Player</h3>
+              </div>
+              <p className="text-slate-400 text-sm">
+                Select a player to swap in for {swapSelection.team === 'team1' ? 'Blue' : 'Red'} team's {swapSelection.position}.
+              </p>
+            </div>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+              {availableForSwap.length === 0 ? (
+                <p className="text-slate-500 text-center py-4">No available players to swap in.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {availableForSwap.map(player => (
+                    <button
+                      key={player.id}
+                      onClick={() => handleSwapConfirm(player.id)}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition border border-slate-700 hover:border-foos-brand"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-slate-900 overflow-hidden border-2 border-slate-600 flex-shrink-0">
+                        {player.photoUrl ? (
+                          <img src={player.photoUrl} alt={player.nickname} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg font-bold text-slate-500">
+                            {player.nickname.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-bold text-white">{player.nickname}</div>
+                        <div className="text-xs text-slate-400">
+                          <span className="text-green-400">{player.wins}W</span>
+                          <span className="mx-1">·</span>
+                          <span className="text-red-400">{player.losses}L</span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 sm:p-6 border-t border-slate-700">
+              <button
+                onClick={() => setSwapSelection(null)}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

@@ -628,6 +628,34 @@ const App: React.FC = () => {
     setView(AppView.DASHBOARD);
   };
 
+  const handleSwapPlayer = (team: 'team1' | 'team2', position: 'attacker' | 'defender', newPlayerId: string) => {
+    if (!currentMatch || !currentTournament) return;
+
+    // Only allow swap if score is low (neither team has more than 2 goals)
+    if (currentMatch.team1.score > 2 || currentMatch.team2.score > 2) return;
+
+    const positionKey = position === 'attacker' ? 'attackerId' : 'defenderId';
+
+    const updatedMatch = {
+      ...currentMatch,
+      [team]: {
+        ...currentMatch[team],
+        [positionKey]: newPlayerId,
+      },
+    };
+
+    setCurrentMatch(updatedMatch);
+
+    // Also update the match in the tournament
+    setCurrentTournament(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        matches: prev.matches.map(m => m.id === updatedMatch.id ? updatedMatch : m),
+      };
+    });
+  };
+
   // ============================================
   // Render
   // ============================================
@@ -705,6 +733,7 @@ const App: React.FC = () => {
           onRedo={handleRedo}
           canUndo={historyIndex > 0}
           canRedo={historyIndex < scoreHistory.length - 1}
+          onSwapPlayer={handleSwapPlayer}
         />
       )}
 
