@@ -631,8 +631,8 @@ const App: React.FC = () => {
   const handleSwapPlayer = (team: 'team1' | 'team2', position: 'attacker' | 'defender', newPlayerId: string) => {
     if (!currentMatch || !currentTournament) return;
 
-    // Only allow swap if score is low (neither team has more than 2 goals)
-    if (currentMatch.team1.score > 2 || currentMatch.team2.score > 2) return;
+    // Only allow swap if score is low (neither team has more than 5 goals)
+    if (currentMatch.team1.score > 5 || currentMatch.team2.score > 5) return;
 
     const positionKey = position === 'attacker' ? 'attackerId' : 'defenderId';
 
