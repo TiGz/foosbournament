@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: '/foosbournament/',
+      base: '/',
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -23,8 +23,8 @@ export default defineConfig(({ mode }) => {
             theme_color: '#020617',
             background_color: '#020617',
             display: 'standalone',
-            scope: '/foosbournament/',
-            start_url: '/foosbournament/',
+            scope: '/',
+            start_url: '/',
             icons: [
               { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
               { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },

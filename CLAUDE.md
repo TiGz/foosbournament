@@ -44,4 +44,4 @@ All state is managed in `App.tsx` using React hooks. Data is automatically persi
 
 The app deploys to GitHub Pages via GitHub Actions on push to `main`. The workflow is defined in `.github/workflows/deploy.yml`.
 
-Live URL: https://tigz.github.io/foosbournament/
+Live URL: https://foosbournament.tigz.me/
